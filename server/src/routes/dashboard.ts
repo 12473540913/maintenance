@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Completion, Machine, Rule, TaskDefinition } from "@maintenance/shared";
-import { getDb } from "../../../database/mongo.js";
-import { serialize } from "../../../database/helpers.js";
+import { getDb } from "../db/mongo.js";
+import { serialize } from "../db/helpers.js";
 import { calculateDueInstance } from "../services/due.js";
 
 export const dashboardRouter = Router();

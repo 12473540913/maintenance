@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { ValidationValueSchema } from "@maintenance/shared";
-import { getDb } from "../../../database/mongo.js";
-import { oid, serialize } from "../../../database/helpers.js";
+import { getDb } from "../db/mongo.js";
+import { oid, serialize } from "../db/helpers.js";
 
 export const validationRouter = Router();
 

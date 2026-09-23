@@ -2,7 +2,7 @@
   "name": "maintenance-tracker",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["frontend", "server", "server/shared"],
+  "workspaces": ["frontend", "server", "shared"],
   "scripts": {
     "dev": "npm run build -w @maintenance/shared && concurrently -n api,web \"npm run dev -w @maintenance/api\" \"npm run dev -w @maintenance/web\"",
     "build": "npm run build -w @maintenance/shared && npm run build -w @maintenance/api && npm run build -w @maintenance/web",

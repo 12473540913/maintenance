@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/package.json
 COPY server/package.json server/package.json
-COPY server/shared/package.json server/shared/package.json
+COPY shared/package.json shared/package.json
 RUN npm ci
 COPY . .
 RUN npm run build

@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { getDb } from "../../../database/mongo.js";
-import { oid, serialize } from "../../../database/helpers.js";
+import { getDb } from "../db/mongo.js";
+import { oid, serialize } from "../db/helpers.js";
 
 export const machinesRouter = Router();
 
