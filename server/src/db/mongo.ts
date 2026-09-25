@@ -21,7 +21,14 @@ export async function getDb(): Promise<Db> {
     await client.connect();
     database = client.db(process.env.MONGODB_DB ?? "maintenance");
     const machines = database.collection("machines");
+    const users = database.collection("users");
+    const userAppBlobs = database.collection("userappblobs");
+    const userAppSettings = database.collection("userappsettings");
     await Promise.all([
+      users.createIndex({ email: 1 }, { unique: true }),
+      users.createIndex({ username: 1 }, { unique: true, sparse: true }),
+      userAppBlobs.createIndex({ userId: 1, appId: 1 }, { unique: true }),
+      userAppSettings.createIndex({ userId: 1, appId: 1 }, { unique: true }),
       machines.updateMany({ spec: { $exists: true }, spec1: { $exists: false } }, { $rename: { spec: "spec1" } }),
       machines.updateMany({ status: "active" }, { $set: { status: "Active" } }),
       machines.updateMany({ status: "pending" }, { $set: { status: "Pending" } }),
