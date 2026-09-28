@@ -2,7 +2,17 @@
 
 Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or other machines.
 
-## Frontend
+## Demos
+- demo to come shortly!
+  
+## Features
+
+## Design
+- no figma wireframes at this moment
+  
+## Tech Stack
+
+### Frontend
 
 - React + Vite + TypeScript
 - Dashboard, machine detail, machines, and rules pages
@@ -16,7 +26,7 @@ npm run dev
 
 The web app calls `/api` by default. Vite proxies that path to the local server during development; in production, Express serves the frontend and API together from one origin.
 
-## Server
+### Server
 
 - Express + TypeScript API
 - Zod shared schemas
@@ -30,7 +40,7 @@ npm run build
 npm run dev
 ```
 
-## Database
+### Database
 
 - MongoDB Atlas document database
 - Direct cloud persistence through `MONGODB_URI`
@@ -41,7 +51,7 @@ npm run dev
 3. Install dependencies with `npm install`.
 4. Optionally load starter data with `npm run seed`.
 
-## Authentication
+### Authentication
 
 Maintenance uses the shared auth-service the same way finances does: auth-service routes the login flow and signs the cookie, but the `maintenance` app's users live in this maintenance MongoDB database. In development, Vite proxies `/auth` to `VITE_AUTH_BASE_URL`, while the Express server proxies `/auth` to `AUTH_BASE_URL` when serving the built frontend from `localhost:8787`. In production, set both auth URLs to `https://auth.lnks.info` and configure auth-service with a `maintenance` app using cookie token mode.
 
@@ -88,30 +98,30 @@ For a recurring task, the next milestone is anchored to the latest completion if
 
 This skeleton intentionally keeps scheduling logic in `server/src/services/due.ts` so it is easy to test and evolve.
 
-# Architecture notes
+## Architecture notes
 
-## Why MongoDB
+### Why MongoDB
 The data is naturally document-oriented and evolves easily. A machine can gain fields later without migrations, while tasks/rules/completions remain separately queryable collections.
 
-## Collections
+### Collections
 
-### machines
+#### machines
 One document per maintained object. `currentOdometer` is a current-state value for dashboard calculation; historical readings can later move into an `odometerReadings` collection if graphs/auditability are desired.
 
-### rules
+#### rules
 Reusable scheduling semantics. Initial kinds:
 - `mileage`
 - `age`
 - `either` (first trigger wins)
 - `special` (seasonal/custom/manual hook)
 
-### taskDefinitions
+#### taskDefinitions
 The canonical "hard copy" of a maintenance task for a specific machine. It describes what the task is and its schedule parameters. This is the equivalent of the spreadsheet's Unique Tasks table.
 
-### completions
+#### completions
 Append-only history. A completion is an actual performed/inspected event with date, odometer, note, and optional cost.
 
-## Instances without instance-table explosion
+### Instances without instance-table explosion
 An instance is a view of a task occurrence, not necessarily a database row. The next instance can be derived from:
 1. task definition,
 2. machine state,
@@ -124,7 +134,7 @@ For UI history dropdowns, fetch the completion history and represent:
 
 If later you need explicit deferred/skipped/acknowledged occurrences, add a small `taskOccurrenceOverrides` collection instead of materializing every future recurrence.
 
-## Dashboard calculation
+### Dashboard calculation
 `services/due.ts` owns scheduling. Keep UI dumb: API returns already-calculated `DueInstance` objects. This makes rule semantics testable and prevents React components from becoming the source of truth.
 
 ## Future features that fit without redesign
