@@ -110,10 +110,10 @@ export const authClient = {
     notifyAuthChanged();
   },
 
-  async signUp(email: string, username: string, password: string): Promise<SignUpResult> {
+  async signUp(email: string, password: string): Promise<SignUpResult> {
     const payload = await fetchAuth("/signup", {
       method: "POST",
-      body: JSON.stringify({ email, username, password })
+      body: JSON.stringify({ email, password })
     });
     return { verificationCode: typeof (payload as CodeResult)?.verificationCode === "string" ? (payload as CodeResult).verificationCode : undefined };
   },

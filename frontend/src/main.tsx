@@ -76,7 +76,6 @@ function App() {
 function LoginView() {
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState("");
@@ -84,7 +83,7 @@ function LoginView() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const title = mode === "sign-up" ? "Create account" : mode === "verify" ? "Verify account" : mode === "forgot" ? "Forgot password" : mode === "reset" ? "Reset password" : "Sign In";
-  const description = mode === "sign-up" ? "Create a maintenance account." : mode === "verify" ? "Enter the verification code sent to your email." : mode === "forgot" ? "Request a reset code for your maintenance account." : mode === "reset" ? "Enter the reset code and choose a new password." : "";
+  const description = mode === "verify" ? "Enter the verification code sent to your email." : mode === "reset" ? "Enter the reset code and choose a new password." : "";
   const submitLabel = loading ? "Working..." : mode === "sign-up" ? "Sign up" : mode === "verify" ? "Verify account" : mode === "forgot" ? "Send reset code" : mode === "reset" ? "Reset password" : "Sign In";
   const clearFeedback = () => { setError(""); setMessage(""); };
   const goTo = (nextMode: AuthMode) => { clearFeedback(); setShowPassword(false); setMode(nextMode); if (nextMode !== "verify" && nextMode !== "reset") setCode(""); };
@@ -93,7 +92,7 @@ function LoginView() {
     const trimmedEmail = email.trim();
     try {
       if (mode === "sign-in") await authClient.signIn(trimmedEmail, password);
-      else if (mode === "sign-up") { await authClient.signUp(trimmedEmail, username.trim(), password); setMessage("Check your email for a verification code."); setMode("verify"); }
+      else if (mode === "sign-up") { await authClient.signUp(trimmedEmail, password); setMessage("Check your email for a verification code."); setMode("verify"); }
       else if (mode === "verify") { await authClient.verifySignUp(trimmedEmail, code.trim()); setMessage("Account verified. You can sign in now."); setPassword(""); setCode(""); setMode("sign-in"); }
       else if (mode === "forgot") { await authClient.requestPasswordReset(trimmedEmail); setMessage("Check your email for a reset code."); setMode("reset"); }
       else { await authClient.resetPassword(trimmedEmail, code.trim(), password); setMessage("Password updated. You can sign in now."); setPassword(""); setCode(""); setMode("sign-in"); }
@@ -110,7 +109,6 @@ function LoginView() {
         <input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
       </div>
     </div>
-    {mode === "sign-up" && <label>Username<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label>}
     {(mode === "verify" || mode === "reset") && <label>Code<input value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" required /></label>}
     {mode !== "forgot" && mode !== "verify" && <div className="auth-field">
       <label htmlFor="auth-password">password</label>

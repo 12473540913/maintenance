@@ -11,17 +11,23 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
   const [editing, setEditing] = useState(false);
   const [dirtyMachines, setDirtyMachines] = useState<Set<string>>(() => new Set());
   const dirty = dirtyMachines.size > 0;
+  const allSelected = filter === "all";
+  const allButton = <button className={`button ${allSelected ? "primary" : "subtle"}`} disabled={dirty || !machines.length} onClick={() => setFilter(allSelected ? machines[0].id! : "all")} aria-pressed={allSelected}>All</button>;
   useEffect(() => { onDirty(dirty); }, [dirty, onDirty]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
-  return <main className="tasks-page">
-    <div className="section-heading"><div><p className="eyebrow">MAINTENANCE LEDGER</p><h2>Tasks</h2></div><button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button></div>
-    <div className="item-filters" aria-label="Filter tasks by item">
-      <button className={filter === "all" ? "filter active" : "filter"} disabled={dirty} onClick={() => setFilter("all")} aria-pressed={filter === "all"}>All items</button>
-      {machines.map((machine) => <button key={machine.id} className={filter === machine.id ? "filter active" : "filter"} disabled={dirty} onClick={() => setFilter(machine.id!)} aria-pressed={filter === machine.id}>{itemName(machine)}</button>)}
+  return <main className="tasks-page" aria-label="Tasks">
+    <div className="tasks-toolbar">
+      <div className="item-filters" role="group" aria-label="Filter tasks by item">
+        {allSelected ? allButton : machines.map((machine) => <button key={machine.id} className={`button ${filter === machine.id ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setFilter(machine.id!)} aria-pressed={filter === machine.id}>{itemName(machine)}</button>)}
+      </div>
+      <div className="tasks-actions">
+        {!allSelected && allButton}
+        <button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button>
+      </div>
     </div>
     {editing && <p className="edit-help">Create your own sections and rows. Timeline labels and values are free text. Save each item's changes before leaving edit mode.</p>}
     {!machines.length && <div className="empty"><h3>Start with an item</h3><p>Add a car, bike, or anything else you maintain to your shop.</p><button className="button primary" onClick={onShop}>Open shop</button></div>}
@@ -47,8 +53,8 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const field = (label: string, value: string, onChange: (value: string) => void) => editing
     ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />
     : value || <span className="not-set">—</span>;
-  return <section className="item-ledger" aria-label={`${itemName(machine)} tasks`}>
-    <div className="ledger-heading"><div><h3>{itemName(machine)}</h3><span>{machine.code} · {machine.type}</span></div>
+  return <section className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
+    <div className="ledger-heading"><div><h3>{itemName(machine)}</h3>{editing && <span>{machine.code} · {machine.type}</span>}</div>
       {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
         setSaving(true); setError("");
         try { const saved = await api.saveLedger(draft); onSaved(saved); setDirty(false); onDirty(false); }
@@ -71,8 +77,15 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             <td>{field("Task action", row.action, (action) => changeRow(section.id, row.id, (entry) => ({ ...entry, action })))}</td>
             <td>{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}</td>
             <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => <div className="timeline-entry" key={entry.id}>
-              {field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}
-              <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
+              {editing
+                ? <>
+                  <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
+                  <div className="timeline-label">{field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}</div>
+                </>
+                : <>
+                  {field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}
+                  <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
+                </>}
               {editing && <button className="text-button danger" aria-label="Remove timeline entry" onClick={() => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.filter((cell) => cell.id !== entry.id) }))}>Remove</button>}
             </div>)}
               {!editing && !row.timeline.length && <span className="not-set">No entries</span>}

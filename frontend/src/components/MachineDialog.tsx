@@ -5,10 +5,10 @@ import { api } from "../lib/api";
 const fields = [
   ["code", "ID"], ["type", "Type"], ["name", "Name"],
   ["year", "Year"], ["make", "Make"], ["model", "Model"], ["spec1", "Spec 1"],
-  ["spec2", "Spec 2"], ["acquiredDate", "Acquired date"], ["inServiceDate", "In-service date"],
+  ["spec2", "Spec 2"], ["acquiredDate", "Acquired date"],
   ["currentOdometer", "Current ODO miles"], ["currentOdometerDate", "Current ODO miles date"],
   ["status", "Status"], ["vinOrSerial", "VIN / SN / ID"], ["modelId", "Model ID"],
-  ["licenseId", "License ID"], ["reminderMiles", "Reminder miles"], ["reminderYears", "Reminder years"]
+  ["licenseId", "License ID"]
 ] as const;
 
 async function readImage(file: File): Promise<string> {
@@ -30,8 +30,7 @@ export function MachineDialog({ machine, onClose, onSaved }: {
   onSaved: () => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const visibleFields = machine ? fields : fields.filter(([key]) => key !== "reminderMiles" && key !== "reminderYears");
-  const [values, setValues] = useState(() => Object.fromEntries(visibleFields.map(([key]) => [key, String(machine?.[key] ?? "")])));
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(([key]) => [key, String(machine?.[key] ?? "")])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [imageFile, setImageFile] = useState<File>();
@@ -69,7 +68,7 @@ export function MachineDialog({ machine, onClose, onSaved }: {
       <div className="item-dialog-actions"><button className="icon-button" type="button" onClick={onClose} disabled={saving} aria-label="Close item form">×</button></div>
       {error && <div className="alert" role="alert">{error}</div>}
       <fieldset disabled={saving} className="form-grid">
-        {visibleFields.map(([key, label]) => <Fragment key={key}>
+        {fields.map(([key, label]) => <Fragment key={key}>
           <label>{label}<input type="text" value={values[key]} required={key === "code" || key === "type"} pattern={key === "code" || key === "type" ? ".*\\S.*" : undefined} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))} /></label>
           {key === "name" && <div className="image-field">
             <label htmlFor="item-image">Image</label>
