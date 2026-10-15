@@ -8,8 +8,8 @@ Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or o
 ## Features
 - **Tasks** is the main tab: a table ledger grouped by item and user-created sections. Show all items or filter to one machine.
 - In **Edit** mode, add/remove sections, task rows (ID, action, description), and free-text timeline labels/values. Save changes per item or discard them; navigation warns about unsaved work.
-- **Shop** displays all items as cards. Open a card to edit the full item form, or use **Add new item**. Fields are manually entered text, including dates, year, and mileage. The optional image file selector accepts JPEG, PNG, GIF, or WebP files up to 5 MB. Images are stored as base64 data in the MongoDB item document, not as external URLs. Editing without selecting a file keeps the current image; select a new file to replace it or use **Remove image** to clear it. Existing URL-based images remain visible until replaced or removed.
-- **Profile** has Identity, Update Profile, and About sections, with no profile photo. The app-specific username can be updated without changing sign-in credentials; password reset and sign-out remain available.
+- **Shop** displays equal-sized item and add-new cards. Item cards show only the centered name (or ID when unnamed) above the image. Open a card to edit the full item form, or use **Add new item**. Add and edit forms have no visible heading or introductory text. Fields are manually entered text, including dates, year, and mileage. The optional image file selector accepts JPEG, PNG, GIF, or WebP files up to 5 MB. Images are stored as base64 data in the MongoDB item document, not as external URLs. Editing without selecting a file keeps the current image; the picker shows **Change image** and **Image attached** for a saved image, or the filename for a newly selected image. Select a new file to replace it or use **Remove image** to clear it. Existing URL-based images remain visible until replaced or removed.
+- **Profile** has Identity, Update Profile, and About sections for Maintenance and NCC. Update Profile contains Sign Out and Change Your Password buttons; the latter opens a form requiring the current password and a confirmed new password. A successful change keeps this browser signed in with a fresh session and invalidates other sessions. Email-code password recovery is available only on the sign-in page.
 - Existing task definitions, notes, and completion history appear in the manual ledger until that item's first ledger is saved. Original scheduling records are retained.
 
 ## Design
@@ -61,6 +61,8 @@ npm run dev
 ### Authentication
 
 Maintenance uses the shared auth-service the same way finances does: auth-service routes the login flow and signs the cookie, but the `maintenance` app's users live in this maintenance MongoDB database. In development, Vite proxies `/auth` to `VITE_AUTH_BASE_URL`, while the Express server proxies `/auth` to `AUTH_BASE_URL` when serving the built frontend from `localhost:8787`. In production, set both auth URLs to `https://auth.lnks.info` and configure auth-service with a `maintenance` app using cookie token mode.
+
+Signed-in password changes call `PATCH /auth/account/password` with `{ currentPassword, password }`. Deploy an auth-service version that verifies the current password before updating it. The browser accepts the replacement HttpOnly session cookie via credentialed requests.
 
 The API verifies the JWT from `AUTH_COOKIE_NAME` with audience `maintenance` and issuer `auth-service`, then checks the signed user id and `authVersion` against the local `users` collection. `/api/health` stays public for health checks, while all other `/api` routes require a valid maintenance user session cookie.
 

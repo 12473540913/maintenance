@@ -36,10 +36,11 @@ export function MachineDialog({ machine, onClose, onSaved }: {
   const [error, setError] = useState("");
   const [imageFile, setImageFile] = useState<File>();
   const [removeImage, setRemoveImage] = useState(false);
+  const hasImage = Boolean(imageFile || (!removeImage && (machine?.imageData || machine?.imageUrl)));
   const imageInput = useRef<HTMLInputElement>(null);
   useEffect(() => { dialog.current?.showModal(); }, []);
 
-  return <dialog ref={dialog} className="item-dialog" onCancel={(event) => {
+  return <dialog ref={dialog} className="item-dialog" aria-label={machine ? "Edit item" : "Add item"} onCancel={(event) => {
     if (event.target !== event.currentTarget) return;
     event.preventDefault();
     if (!saving) onClose();
@@ -65,8 +66,7 @@ export function MachineDialog({ machine, onClose, onSaved }: {
         setError(reason instanceof Error ? reason.message : "Could not save item.");
       } finally { setSaving(false); }
     }}>
-      <div className="section-heading"><div><p className="eyebrow">MY SHOP</p><h2>{machine ? "Edit item" : "Add item"}</h2></div><button className="icon-button" type="button" onClick={onClose} disabled={saving} aria-label="Close item form">×</button></div>
-      <p className="muted">Enter your own details and optionally select an image. Only ID and type are required.</p>
+      <div className="item-dialog-actions"><button className="icon-button" type="button" onClick={onClose} disabled={saving} aria-label="Close item form">×</button></div>
       {error && <div className="alert" role="alert">{error}</div>}
       <fieldset disabled={saving} className="form-grid">
         {visibleFields.map(([key, label]) => <Fragment key={key}>
@@ -81,11 +81,12 @@ export function MachineDialog({ machine, onClose, onSaved }: {
                 }} />
                 <span className="image-picker-content" aria-hidden="true">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
-                  <span>Choose file</span>
+                  <span>{hasImage ? "Change image" : "Choose file"}</span>
                   {imageFile && <span className="image-picker-filename">{imageFile.name}</span>}
+                  {!imageFile && hasImage && <span className="image-picker-filename">Image attached</span>}
                 </span>
               </div>
-              {(imageFile || (!removeImage && (machine?.imageData || machine?.imageUrl))) && <button type="button" className="image-picker-remove" aria-label="Remove image" title="Remove image" onClick={() => {
+              {hasImage && <button type="button" className="image-picker-remove" aria-label="Remove image" title="Remove image" onClick={() => {
                 setImageFile(undefined);
                 setRemoveImage(true);
                 if (imageInput.current) imageInput.current.value = "";

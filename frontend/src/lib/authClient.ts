@@ -148,6 +148,15 @@ export const authClient = {
     });
   },
 
+  async changePassword(currentPassword: string, password: string): Promise<void> {
+    await fetchAuth("/account/password", {
+      method: "PATCH",
+      body: JSON.stringify({ currentPassword, password })
+    });
+    setTabSession(true);
+    notifyAuthChanged();
+  },
+
   async signOut(): Promise<void> {
     await fetchAuth("/signout", { method: "POST" });
     setTabSession(false);

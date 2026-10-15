@@ -9,7 +9,7 @@ function ItemImage({ machine }: { machine: Machine }) {
   const source = machine.imageData || (machine.imageUrl && /^https?:\/\//i.test(machine.imageUrl) ? machine.imageUrl : undefined);
   return source && !failed
     ? <img src={source} alt={itemName(machine)} onError={() => setFailed(true)} />
-    : <div className="item-placeholder"><span>{machine.type || "Item"}</span><small>{failed || machine.imageUrl ? "Image unavailable" : "No image"}</small></div>;
+    : <div className="item-placeholder" role="img" aria-label={failed || machine.imageUrl ? "Image unavailable" : "No image"} />;
 }
 
 export function ShopView({ machines, onSaved }: { machines: Machine[]; onSaved: () => Promise<void> }) {
@@ -17,9 +17,8 @@ export function ShopView({ machines, onSaved }: { machines: Machine[]; onSaved: 
   return <main className="shop-page">
     <div className="shop-grid">
       {machines.map((machine) => <button className="shop-card" key={machine.id} onClick={() => setForm(machine)} aria-label={`Open ${itemName(machine)}`}>
-        <div className="shop-card-heading"><h3>{itemName(machine)}</h3><span>{machine.code}</span></div>
+        <h3 title={itemName(machine)}>{itemName(machine)}</h3>
         <ItemImage key={`${machine.id}-${machine.imageData || machine.imageUrl}`} machine={machine} />
-        <p>{[machine.year, machine.make, machine.model].filter(Boolean).join(" ") || machine.type}</p>
       </button>)}
       <button className="shop-card add-card" onClick={() => setForm("new")} aria-label="Add new item"><span aria-hidden="true">+</span></button>
     </div>
