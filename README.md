@@ -103,6 +103,8 @@ AUTH_COOKIE_NAME=auth_session
 VITE_AUTH_BASE_URL=https://auth.lnks.info
 ```
 
+The runtime image must include the built `shared` workspace because the API imports `@maintenance/shared` through npm's workspace link. On Cloud Run, leave `PORT` managed by the platform (normally `8080`); the server reads it automatically.
+
 Point `maintenance.lnks.info` at this service using the provider's custom-domain controls. The service listens on `PORT` and exposes both the application and `/api` on that domain. Register `maintenance` in auth-service with `AUTH_TOKEN_MODE_MAINTENANCE=cookie`, `AUTH_ORIGINS_MAINTENANCE=https://maintenance.lnks.info`, and `ATLAS_URI_MAINTENANCE` pointed at this production maintenance database.
 
 ### Domain model
