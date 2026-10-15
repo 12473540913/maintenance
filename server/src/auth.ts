@@ -61,7 +61,11 @@ export async function requireAuth(req: express.Request, res: express.Response, n
     }
     res.locals.user = user;
     next();
-  } catch {
-    res.status(401).json({ error: "Unauthorized" });
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    next(error);
   }
 }

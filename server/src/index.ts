@@ -10,6 +10,8 @@ import { crudRouter } from "./routes/crud.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { machinesRouter } from "./routes/machines.js";
 import { validationRouter } from "./routes/validation.js";
+import { ledgersRouter } from "./routes/ledgers.js";
+import { profileRouter } from "./routes/profile.js";
 
 dotenv.config({ path: [path.resolve(process.cwd(), "../.env.development"), path.resolve(process.cwd(), "../.env")] });
 
@@ -19,11 +21,13 @@ app.use(cors({ origin: allowedOrigins ? (origin, callback) => { if (!origin || a
 app.use(cookieParser());
 const authBaseUrl = (process.env.AUTH_BASE_URL ?? process.env.VITE_AUTH_BASE_URL ?? "").trim();
 if (authBaseUrl) {
-	app.use("/auth", createProxyMiddleware({ target: authBaseUrl, changeOrigin: true, secure: true, cookieDomainRewrite: "" }));
+	app.use("/auth", createProxyMiddleware({ target: authBaseUrl, changeOrigin: true, secure: true, cookieDomainRewrite: "", cookiePathRewrite: "/" }));
 }
 app.use(express.json());
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api", requireAuth);
+app.use("/api/task-ledgers", ledgersRouter);
+app.use("/api/profile", profileRouter);
 app.use("/api/validation-values", validationRouter);
 app.use("/api", crudRouter);
 app.use("/api/dashboard", dashboardRouter);

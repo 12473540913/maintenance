@@ -6,6 +6,11 @@ Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or o
 - demo to come shortly!
   
 ## Features
+- **Tasks** is the main tab: a table ledger grouped by item and user-created sections. Show all items or filter to one machine.
+- In **Edit** mode, add/remove sections, task rows (ID, action, description), and free-text timeline labels/values. Save changes per item or discard them; navigation warns about unsaved work.
+- **Shop** displays all items as cards. Open a card to edit the full item form, or use **Add new item**. Fields are manually entered text, including dates, year, mileage, and an optional HTTP(S) image URL.
+- **Profile** has Identity, Update Profile, and About sections, with no profile photo. The app-specific username can be updated without changing sign-in credentials; password reset and sign-out remain available.
+- Existing task definitions, notes, and completion history appear in the manual ledger until that item's first ledger is saved. Original scheduling records are retained.
 
 ## Design
 - no figma wireframes at this moment
@@ -15,7 +20,7 @@ Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or o
 ### Frontend
 
 - React + Vite + TypeScript
-- Dashboard, machine detail, machines, and rules pages
+- Tasks, Shop, and Profile screens
 - Runs at http://localhost:5173
 
 Start the frontend with the root development command after the server and database are configured:
@@ -57,6 +62,8 @@ Maintenance uses the shared auth-service the same way finances does: auth-servic
 
 The API verifies the JWT from `AUTH_COOKIE_NAME` with audience `maintenance` and issuer `auth-service`, then checks the signed user id and `authVersion` against the local `users` collection. `/api/health` stays public for health checks, while all other `/api` routes require a valid maintenance user session cookie.
 
+The API uses the database named in `MONGODB_URI` unless `MONGODB_DB` explicitly overrides it. Keep that effective database identical to auth-service's `ATLAS_URI_MAINTENANCE`; otherwise sign-in can succeed while API requests return `Unauthorized` because the API cannot find the signed-in user. Database or server configuration failures are reported as server errors, not invalid sessions.
+
 Auth-service needs this app registered in each environment. Its app database URI must point at the same database used by this service:
 
 ```text
@@ -90,8 +97,10 @@ Point `maintenance.lnks.info` at this service using the provider's custom-domain
 - **taskDefinitions**: master/hard-copy maintenance tasks assigned to a machine, with a rule + schedule parameters
 - **completions**: immutable service history events (what actually happened, date, odometer, note)
 - **instances**: derived API/UI objects representing the next/previous occurrence of a task; not a giant table that must stay synchronized
+- **taskLedgers**: user/item-scoped manual sections, rows, and timeline entries, saved as an item-sized document
+- **userappsettings**: app-specific profile username for each user
 
-The dashboard derives due/overdue work from the machine's current odometer/date, each task definition, and its latest completion.
+The main Tasks screen uses manual ledgers rather than generated schedules. The existing dashboard API and scheduling engine remain available for numeric odometer values and parseable dates; arbitrary free-text mileage/date values are not used as scheduling anchors.
 
 ### Scheduling semantics
 For a recurring task, the next milestone is anchored to the latest completion if one exists; otherwise it is anchored to the machine's in-service date / starting odometer. `either` means the earlier of age or mileage. The engine reports overdue, due-soon, upcoming, or unscheduled.

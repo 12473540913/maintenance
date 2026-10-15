@@ -1,44 +1,49 @@
-import { useState } from "react";
-import type { Machine, ValidationCategory, ValidationValue } from "@maintenance/shared";
+import { useEffect, useRef, useState } from "react";
+import type { Machine } from "@maintenance/shared";
 import { api } from "../lib/api";
 
-const labels: Record<ValidationCategory, string> = { type: "Type", make: "Make", model: "Model", spec1: "Spec 1", status: "Status" };
+const fields = [
+  ["code", "ID"], ["type", "Type"], ["name", "Name"], ["imageUrl", "Image URL"],
+  ["year", "Year"], ["make", "Make"], ["model", "Model"], ["spec1", "Spec 1"],
+  ["spec2", "Spec 2"], ["acquiredDate", "Acquired date"], ["inServiceDate", "In-service date"],
+  ["currentOdometer", "Current ODO miles"], ["currentOdometerDate", "Current ODO miles date"],
+  ["status", "Status"], ["vinOrSerial", "VIN / SN / ID"], ["modelId", "Model ID"],
+  ["licenseId", "License ID"], ["reminderMiles", "Reminder miles"], ["reminderYears", "Reminder years"]
+] as const;
 
-function optional(value: string): string | undefined {
-  return value || undefined;
-}
+export function MachineDialog({ machine, onClose, onSaved }: {
+  machine?: Machine;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(([key]) => [key, String(machine?.[key] ?? (key === "status" ? "Active" : ""))])));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { dialog.current?.showModal(); }, []);
 
-function optionalNumber(value: string): number | undefined {
-  return value === "" ? undefined : Number(value);
-}
-
-export function MachineDialog({ validationValues, onClose, onSaved }: { validationValues: ValidationValue[]; onClose: () => void; onSaved: () => Promise<void> }) {
-  const [fields, setFields] = useState({ code: "", type: "Auto", year: "", make: "", model: "", spec1: "", acquiredDate: "", inServiceDate: "", currentOdometer: "", currentOdometerDate: "", status: "Active", vinOrSerial: "", modelId: "", licenseId: "", reminderMiles: "", reminderYears: "" });
-  const setField = (name: keyof typeof fields, value: string) => setFields((current) => ({ ...current, [name]: value }));
-  const options = (category: ValidationCategory) => validationValues.filter((item) => item.category === category);
-  const select = (category: ValidationCategory, required = false) => <label>{labels[category]}<select value={fields[category]} onChange={(event) => setField(category, event.target.value)} required={required}>{!required && <option value="">None</option>}{options(category).map((item) => <option value={item.value} key={item.id}>{item.value}</option>)}</select></label>;
-
-  return <div className="modal-backdrop"><form className="modal machine-modal" onSubmit={async (event) => {
-    event.preventDefault();
-    const machine: Omit<Machine, "id"> = {
-      code: fields.code,
-      type: fields.type,
-      year: optionalNumber(fields.year),
-      make: optional(fields.make),
-      model: optional(fields.model),
-      spec1: optional(fields.spec1),
-      acquiredDate: optional(fields.acquiredDate),
-      inServiceDate: optional(fields.inServiceDate),
-      currentOdometer: optionalNumber(fields.currentOdometer),
-      currentOdometerDate: optional(fields.currentOdometerDate),
-      status: fields.status,
-      vinOrSerial: optional(fields.vinOrSerial),
-      modelId: optional(fields.modelId),
-      licenseId: optional(fields.licenseId),
-      reminderMiles: optionalNumber(fields.reminderMiles),
-      reminderYears: optionalNumber(fields.reminderYears)
-    };
-    await api.createMachine(machine);
-    await onSaved();
-  }}><div className="section-heading"><h2>Add machine</h2><button type="button" className="icon-button" aria-label="Close" onClick={onClose}>×</button></div><div className="form-grid"><label>Machine ID<input value={fields.code} onChange={(event) => setField("code", event.target.value)} required /></label>{select("type", true)}<label>Year<input value={fields.year} onChange={(event) => setField("year", event.target.value)} type="number" min="1800" max="3000" /></label>{select("make")}{select("model")}{select("spec1")}<label>Acquired Date<input value={fields.acquiredDate} onChange={(event) => setField("acquiredDate", event.target.value)} type="date" /></label><label>In-Service Date<input value={fields.inServiceDate} onChange={(event) => setField("inServiceDate", event.target.value)} type="date" /></label><label>Current ODO Miles<input value={fields.currentOdometer} onChange={(event) => setField("currentOdometer", event.target.value)} type="number" min="0" /></label><label>Current ODO Miles Date<input value={fields.currentOdometerDate} onChange={(event) => setField("currentOdometerDate", event.target.value)} type="date" /></label>{select("status", true)}<label>VIN / ID / SN /<input value={fields.vinOrSerial} onChange={(event) => setField("vinOrSerial", event.target.value)} /></label><label>Model ID<input value={fields.modelId} onChange={(event) => setField("modelId", event.target.value)} /></label><label>License ID<input value={fields.licenseId} onChange={(event) => setField("licenseId", event.target.value)} /></label><label>Reminder Miles<input value={fields.reminderMiles} onChange={(event) => setField("reminderMiles", event.target.value)} type="number" min="0" /></label><label>Reminder Years<input value={fields.reminderYears} onChange={(event) => setField("reminderYears", event.target.value)} type="number" min="0" step="any" /></label></div><button className="button primary" type="submit">Add machine</button></form></div>;
+  return <dialog ref={dialog} className="item-dialog" onCancel={(event) => { event.preventDefault(); if (!saving) onClose(); }}>
+    <form onSubmit={async (event) => {
+      event.preventDefault();
+      setSaving(true);
+      setError("");
+      try {
+        const payload: Omit<Machine, "id"> = { ...values, code: values.code.trim(), type: values.type.trim(), status: values.status };
+        if (machine?.id) await api.updateMachine(machine.id, payload);
+        else await api.createMachine(payload);
+        await onSaved();
+        onClose();
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Could not save item.");
+      } finally { setSaving(false); }
+    }}>
+      <div className="section-heading"><div><p className="eyebrow">MY SHOP</p><h2>{machine ? "Edit item" : "Add item"}</h2></div><button className="icon-button" type="button" onClick={onClose} disabled={saving} aria-label="Close item form">×</button></div>
+      <p className="muted">Enter your own details. All fields are free text; only ID and type are required.</p>
+      {error && <div className="alert" role="alert">{error}</div>}
+      <fieldset disabled={saving} className="form-grid">
+        {fields.map(([key, label]) => <label key={key}>{label}<input type="text" value={values[key]} required={key === "code" || key === "type"} pattern={key === "code" || key === "type" ? ".*\\S.*" : undefined} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))} /></label>)}
+      </fieldset>
+      <div className="form-actions"><button type="button" className="button subtle" onClick={onClose} disabled={saving}>Cancel</button><button className="button primary" disabled={saving}>{saving ? "Saving..." : "Save item"}</button></div>
+    </form>
+  </dialog>;
 }

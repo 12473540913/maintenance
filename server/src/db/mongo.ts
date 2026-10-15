@@ -19,7 +19,7 @@ export async function getDb(): Promise<Db> {
   connection = (async () => {
     client = new MongoClient(uri);
     await client.connect();
-    database = client.db(process.env.MONGODB_DB ?? "maintenance");
+    database = client.db(process.env.MONGODB_DB?.trim() || undefined);
     const machines = database.collection("machines");
     const users = database.collection("users");
     const userAppBlobs = database.collection("userappblobs");
@@ -29,6 +29,7 @@ export async function getDb(): Promise<Db> {
       users.createIndex({ username: 1 }, { unique: true, sparse: true }),
       userAppBlobs.createIndex({ userId: 1, appId: 1 }, { unique: true }),
       userAppSettings.createIndex({ userId: 1, appId: 1 }, { unique: true }),
+      database.collection("taskLedgers").createIndex({ userId: 1, machineId: 1 }, { unique: true }),
       machines.updateMany({ spec: { $exists: true }, spec1: { $exists: false } }, { $rename: { spec: "spec1" } }),
       machines.updateMany({ status: "active" }, { $set: { status: "Active" } }),
       machines.updateMany({ status: "pending" }, { $set: { status: "Pending" } }),

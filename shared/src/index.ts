@@ -2,23 +2,49 @@ import { z } from "zod";
 
 export const MachineSchema = z.object({
   id: z.string().optional(),
-  code: z.string().min(1),
-  type: z.string().min(1),
-  year: z.number().int().min(1800).max(3000).optional(),
+  code: z.string(),
+  type: z.string(),
+  name: z.string().optional(),
+  imageUrl: z.string().optional(),
+  year: z.union([z.string(), z.number().int().min(1800).max(3000)]).optional(),
   make: z.string().optional(),
   model: z.string().optional(),
   spec1: z.string().optional(),
+  spec2: z.string().optional(),
   acquiredDate: z.string().optional(),
   inServiceDate: z.string().optional(),
-  currentOdometer: z.number().nonnegative().optional(),
+  currentOdometer: z.union([z.string(), z.number().nonnegative()]).optional(),
   currentOdometerDate: z.string().optional(),
-  status: z.string().min(1).default("Active"),
+  status: z.string().default("Active"),
   vinOrSerial: z.string().optional(),
   modelId: z.string().optional(),
   licenseId: z.string().optional(),
-  reminderMiles: z.number().nonnegative().optional(),
-  reminderYears: z.number().nonnegative().optional()
+  reminderMiles: z.union([z.string(), z.number().nonnegative()]).optional(),
+  reminderYears: z.union([z.string(), z.number().nonnegative()]).optional()
 });
+
+export const LedgerRowSchema = z.object({
+  id: z.string().min(1),
+  code: z.string(),
+  action: z.string(),
+  description: z.string(),
+  timeline: z.array(z.object({ id: z.string().min(1), label: z.string(), value: z.string() }))
+});
+
+export const TaskLedgerSchema = z.object({
+  machineId: z.string().min(1),
+  sections: z.array(z.object({
+    id: z.string().min(1),
+    name: z.string(),
+    rows: z.array(LedgerRowSchema)
+  }))
+});
+
+export const ProfileSchema = z.object({ username: z.string().trim().min(3).max(100) });
+export type TaskLedger = z.infer<typeof TaskLedgerSchema>;
+export type LedgerSection = TaskLedger["sections"][number];
+export type LedgerRow = z.infer<typeof LedgerRowSchema>;
+export type Profile = z.infer<typeof ProfileSchema>;
 
 export const ValidationCategorySchema = z.enum(["type", "make", "model", "spec1", "status"]);
 

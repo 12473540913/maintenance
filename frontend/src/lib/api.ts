@@ -1,4 +1,4 @@
-import type { DueInstance, Machine, Rule, ValidationValue } from "@maintenance/shared";
+import type { Completion, DueInstance, Machine, Profile, Rule, TaskDefinition, TaskLedger, ValidationValue } from "@maintenance/shared";
 
 const apiBaseUrl = normalizeApiBase(import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL) || "/api";
 const authBaseUrl = import.meta.env.DEV ? "" : normalizeApiBase(import.meta.env.VITE_AUTH_BASE_URL);
@@ -29,7 +29,18 @@ async function parseError(response: Response): Promise<Error> {
 async function get<T>(path: string): Promise<T> { const response = await fetch(`${apiBaseUrl}${path}`, { credentials: "include" }); if (!response.ok) throw await parseError(response); return response.json(); }
 async function post<T>(path: string, body: unknown): Promise<T> { const response = await fetch(`${apiBaseUrl}${path}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!response.ok) throw await parseError(response); return response.json(); }
 async function remove(path: string): Promise<void> { const response = await fetch(`${apiBaseUrl}${path}`, { method: "DELETE", credentials: "include" }); if (!response.ok) throw await parseError(response); }
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${apiBaseUrl}${path}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!response.ok) throw await parseError(response);
+  return response.json();
+}
 export const api = {
+  tasks: () => get<TaskDefinition[]>("/taskDefinitions"),
+  completions: () => get<Completion[]>("/completions"),
+  ledgers: () => get<TaskLedger[]>("/task-ledgers"),
+  saveLedger: (ledger: TaskLedger) => put<TaskLedger>(`/task-ledgers/${encodeURIComponent(ledger.machineId)}`, ledger),
+  profile: () => get<Profile>("/profile"),
+  saveProfile: (profile: Profile) => put<Profile>("/profile", profile),
   dashboard: () => get<DueInstance[]>("/dashboard"),
   machines: () => get<Machine[]>("/machines"),
   rules: () => get<Rule[]>("/rules"),
@@ -37,5 +48,6 @@ export const api = {
   createValidationValue: (value: Omit<ValidationValue, "id" | "core">) => post<ValidationValue>("/validation-values", value),
   deleteValidationValue: (id: string) => remove(`/validation-values/${id}`),
   createMachine: (machine: Omit<Machine, "id">) => post<Machine>("/machines", machine),
+  updateMachine: (id: string, machine: Omit<Machine, "id">) => put<Machine>(`/machines/${encodeURIComponent(id)}`, machine),
   updateOdometer: (id: string, currentOdometer: number, currentOdometerDate: string) => fetch(`${apiBaseUrl}/machines/${id}/odometer`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentOdometer, currentOdometerDate }) })
 };

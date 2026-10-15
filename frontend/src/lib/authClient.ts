@@ -149,11 +149,8 @@ export const authClient = {
   },
 
   async signOut(): Promise<void> {
-    try {
-      await fetchAuth("/signout", { method: "POST" });
-    } finally {
-      setTabSession(false);
-      notifyAuthChanged();
-    }
+    await fetchAuth("/signout", { method: "POST" });
+    setTabSession(false);
+    notifyAuthChanged();
   }
 };

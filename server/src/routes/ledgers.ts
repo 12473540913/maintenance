@@ -1,0 +1,30 @@
+import { Router } from "express";
+import { TaskLedgerSchema } from "@maintenance/shared";
+import { getDb } from "../db/mongo.js";
+import { oid } from "../db/helpers.js";
+
+export const ledgersRouter = Router();
+
+ledgersRouter.get("/", async (_req, res, next) => {
+  try {
+    const rows = await (await getDb()).collection("taskLedgers").find({ userId: res.locals.user.id }).toArray();
+    res.json(rows.map(({ machineId, sections }) => ({ machineId, sections })));
+  } catch (error) { next(error); }
+});
+
+ledgersRouter.put("/:machineId", async (req, res, next) => {
+  try {
+    const ledger = TaskLedgerSchema.parse({ ...req.body, machineId: req.params.machineId });
+    const db = await getDb();
+    if (!await db.collection("machines").findOne({ _id: oid(ledger.machineId) })) {
+      res.status(404).json({ error: "Item not found." });
+      return;
+    }
+    await db.collection("taskLedgers").updateOne(
+      { userId: res.locals.user.id, machineId: ledger.machineId },
+      { $set: ledger },
+      { upsert: true }
+    );
+    res.json(ledger);
+  } catch (error) { next(error); }
+});
