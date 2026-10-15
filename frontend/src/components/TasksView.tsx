@@ -54,7 +54,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />
     : value || <span className="not-set">—</span>;
   return <section className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
-    <div className="ledger-heading"><div><h3>{itemName(machine)}</h3>{editing && <span>{machine.code} · {machine.type}</span>}</div>
+    <div className="ledger-heading"><div><h3>{itemName(machine)}</h3></div>
       {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
         setSaving(true); setError("");
         try { const saved = await api.saveLedger(draft); onSaved(saved); setDirty(false); onDirty(false); }

@@ -58,6 +58,16 @@ npm run dev
 3. Install dependencies with `npm install`.
 4. Optionally load starter data with `npm run seed`.
 
+#### Connection troubleshooting
+
+`querySrv ECONNREFUSED` means the DNS lookup for the Atlas cluster failed before the API could connect to MongoDB. Flushing the DNS cache does not fix a resolver that refuses SRV queries.
+
+If your network permits public DNS, add `MONGODB_DNS_SERVERS=1.1.1.1,8.8.8.8` to `.env.development` and restart the API. This explicitly replaces Node's DNS resolver servers for SRV/TXT and other `dns.resolve*` calls throughout the API process; it does not change Windows DNS settings or hostname lookups through `dns.lookup`. Leave it unset to retain the system resolver. Use DNS servers approved for your network; the app never switches to public DNS automatically.
+
+Alternatively, set `MONGODB_URI` to a standard `mongodb://` connection string supplied by Atlas. That avoids SRV/TXT discovery, but still requires hostname resolution and network access. Keep all Atlas-provided hosts, replica-set, authentication, and TLS settings; do not guess the hosts or disable TLS. Neither option changes the selected database: local development uses `maintenance-dev`, and production uses `maintenance`. Keep auth-service pointed at the same database.
+
+Concurrent requests share one connection attempt. A failed connection or database initialization is closed and discarded so the next request (including the UI's **Retry** button) can try again. The API only caches the database after initialization succeeds; failures remain visible rather than returning empty data.
+
 ### Authentication
 
 Maintenance uses the shared auth-service the same way finances does: auth-service routes the login flow and signs the cookie, but the `maintenance` app's users live in this maintenance MongoDB database. In development, Vite proxies `/auth` to `VITE_AUTH_BASE_URL`, while the Express server proxies `/auth` to `AUTH_BASE_URL` when serving the built frontend from `localhost:8787`. In production, set both auth URLs to `https://auth.lnks.info` and configure auth-service with a `maintenance` app using cookie token mode.

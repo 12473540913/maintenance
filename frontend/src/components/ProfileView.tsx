@@ -49,12 +49,13 @@ export function ProfileView({ session }: { session: AppAuthSession }) {
         {section === "about" && <div className="about-sections">
           <section className="about-section"><h3>About Maintenance</h3>
             <p>Maintenance is a personal ledger for the things you look after. Keep item details, maintenance tasks, and service history organized in one place, with everything entered and managed by you.</p>
-            <p>Repository: <a href="https://github.com/1247350913/maintenance" target="_blank" rel="noopener noreferrer">github.com/1247350913/maintenance</a></p>
+            <p>Repository: <a href="https://github.com/12473540913/maintenance" target="_blank" rel="noopener noreferrer">github.com/1247350913/maintenance</a></p>
             <p>Contact: open an issue in the repository for bugs, feedback, and feature requests.</p>
           </section>
           <section className="about-section"><h3>About NCC</h3>
-            <p>NCC - no copyright code.</p>
-            <p>See the <a href="https://ncc.lnks.rip" target="_blank" rel="noopener noreferrer">NCC website</a> for more details.</p>
+            <p>See the <a href="https://ncc.lnks.rip" target="_blank" rel="noopener noreferrer">website</a> for more details.</p>
+            <p>Repository: <a href="https://github.com/12473540913/NCC" target="_blank" rel="noopener noreferrer">https://github.com/12473540913/NCC</a></p>
+            <p>Contact: open an issue in the repository for bugs, feedback, and feature requests.</p>
           </section>
         </div>}
       </div>
