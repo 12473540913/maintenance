@@ -8,7 +8,7 @@ Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or o
 ## Features
 - **Tasks** is the main tab: a table ledger grouped by item and user-created sections. Show all items or filter to one machine.
 - In **Edit** mode, add/remove sections, task rows (ID, action, description), and free-text timeline labels/values. Save changes per item or discard them; navigation warns about unsaved work.
-- **Shop** displays all items as cards. Open a card to edit the full item form, or use **Add new item**. Fields are manually entered text, including dates, year, mileage, and an optional HTTP(S) image URL.
+- **Shop** displays all items as cards. Open a card to edit the full item form, or use **Add new item**. Fields are manually entered text, including dates, year, and mileage. The optional image file selector accepts JPEG, PNG, GIF, or WebP files up to 5 MB. Images are stored as base64 data in the MongoDB item document, not as external URLs. Editing without selecting a file keeps the current image; select a new file to replace it or use **Remove image** to clear it. Existing URL-based images remain visible until replaced or removed.
 - **Profile** has Identity, Update Profile, and About sections, with no profile photo. The app-specific username can be updated without changing sign-in credentials; password reset and sign-out remain available.
 - Existing task definitions, notes, and completion history appear in the manual ledger until that item's first ledger is saved. Original scheduling records are retained.
 
@@ -30,6 +30,8 @@ npm run dev
 ```
 
 The web app calls `/api` by default. Vite proxies that path to the local server during development; in production, Express serves the frontend and API together from one origin.
+
+Browser favicons, the Apple touch icon, and the Android web app manifest icons are served from `frontend/public`. Keep the icon links in `frontend/index.html` and the icon paths in `frontend/public/site.webmanifest` in sync when replacing them.
 
 ### Server
 

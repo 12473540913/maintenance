@@ -23,6 +23,7 @@ const authBaseUrl = (process.env.AUTH_BASE_URL ?? process.env.VITE_AUTH_BASE_URL
 if (authBaseUrl) {
 	app.use("/auth", createProxyMiddleware({ target: authBaseUrl, changeOrigin: true, secure: true, cookieDomainRewrite: "", cookiePathRewrite: "/" }));
 }
+app.use("/api/machines", express.json({ limit: "8mb" }));
 app.use(express.json());
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api", requireAuth);
@@ -32,7 +33,7 @@ app.use("/api/validation-values", validationRouter);
 app.use("/api", crudRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/machines", machinesRouter);
-app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => res.status(error instanceof ZodError ? 400 : 500).json({ error: error.message }));
+app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => res.status(error instanceof ZodError ? 400 : "status" in error && error.status === 413 ? 413 : 500).json({ error: error.message }));
 
 const webDist = path.resolve(process.cwd(), "../frontend/dist");
 app.use(express.static(webDist));

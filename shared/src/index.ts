@@ -1,11 +1,24 @@
 import { z } from "zod";
 
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
+export const MachineImageSchema = z.string()
+  .max(4 * Math.ceil(MAX_IMAGE_BYTES / 3) + 32, "Image must be 5 MB or smaller.")
+  .regex(/^data:image\/(?:jpeg|png|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/, "Choose a JPEG, PNG, GIF, or WebP image.")
+  .refine((value) => {
+    const data = value.slice(value.indexOf(",") + 1);
+    const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+    const bytes = data.length * 3 / 4 - padding;
+    return data.length % 4 === 0 && bytes > 0 && bytes <= MAX_IMAGE_BYTES;
+  }, "Image must be nonempty and 5 MB or smaller.");
+
 export const MachineSchema = z.object({
   id: z.string().optional(),
   code: z.string(),
   type: z.string(),
   name: z.string().optional(),
   imageUrl: z.string().optional(),
+  imageData: z.union([MachineImageSchema, z.literal("")]).optional(),
   year: z.union([z.string(), z.number().int().min(1800).max(3000)]).optional(),
   make: z.string().optional(),
   model: z.string().optional(),
@@ -15,7 +28,7 @@ export const MachineSchema = z.object({
   inServiceDate: z.string().optional(),
   currentOdometer: z.union([z.string(), z.number().nonnegative()]).optional(),
   currentOdometerDate: z.string().optional(),
-  status: z.string().default("Active"),
+  status: z.string().optional(),
   vinOrSerial: z.string().optional(),
   modelId: z.string().optional(),
   licenseId: z.string().optional(),
