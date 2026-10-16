@@ -92,20 +92,26 @@ For production, use `AUTH_ORIGINS_MAINTENANCE=https://maintenance.lnks.info` and
 
 ## Deployment
 
-The included `Dockerfile` builds and serves both the web app and API as one public service. Set these secrets in the deployment provider, not in a tracked `.env` file:
+Production hosts the frontend on Cloudflare Pages at `maintenance.lnks.info` and the API on Cloud Run at `api.maintenance.lnks.info`. Keep the frontend's Pages custom domain and the API's Cloud Run domain mapping separate.
+
+The frontend defaults to `https://api.maintenance.lnks.info/api` for data requests and `https://auth.lnks.info` for authentication. To override these, set `VITE_API_BASE_URL` and `VITE_AUTH_BASE_URL` in the Cloudflare Pages production build environment, then rebuild the frontend. Cloud Run runtime variables do not change a previously built frontend. In development, requests stay on the localhost frontend origin: Vite proxies `/api` to the local API and `/auth` to the configured auth-service.
+
+Set the following on Cloud Run, using Secret Manager for `MONGODB_URI` and `JWT_SECRET`, not a tracked `.env` file:
 
 ```text
 MONGODB_URI=mongodb+srv://camjhirsh_db_user:URL_ENCODED_PASSWORD@cluster0.ejtoobf.mongodb.net/maintenance?appName=Cluster0
 MONGODB_DB=maintenance
-PORT=8787
 JWT_SECRET=same-secret-as-auth-service
 AUTH_COOKIE_NAME=auth_session
-VITE_AUTH_BASE_URL=https://auth.lnks.info
+AUTH_BASE_URL=https://auth.lnks.info
+ALLOWED_ORIGINS=https://maintenance.lnks.info
 ```
 
 The runtime image must include the built `shared` workspace because the API imports `@maintenance/shared` through npm's workspace link. On Cloud Run, leave `PORT` managed by the platform (normally `8080`); the server reads it automatically.
 
-Point `maintenance.lnks.info` at this service using the provider's custom-domain controls. The service listens on `PORT` and exposes both the application and `/api` on that domain. Register `maintenance` in auth-service with `AUTH_TOKEN_MODE_MAINTENANCE=cookie`, `AUTH_ORIGINS_MAINTENANCE=https://maintenance.lnks.info`, and `ATLAS_URI_MAINTENANCE` pointed at this production maintenance database.
+Map `api.maintenance.lnks.info` to Cloud Run. Its `/api/health` endpoint must return `{"ok":true}`; the same path on the Pages hostname may return frontend HTML. The Dockerfile also includes the built frontend, but Pages remains the public frontend host in this setup.
+
+Register `maintenance` in auth-service with `AUTH_TOKEN_MODE_MAINTENANCE=cookie`, `AUTH_ORIGINS_MAINTENANCE=https://maintenance.lnks.info`, `AUTH_COOKIE_DOMAIN_MAINTENANCE=.lnks.info`, and `ATLAS_URI_MAINTENANCE` pointed at this production maintenance database. The shared cookie domain allows auth-service's session cookie to reach the API subdomain. Both services must use the same JWT secret and cookie name.
 
 ### Domain model
 - **machines**: hard facts, service start date, current odometer/date, status

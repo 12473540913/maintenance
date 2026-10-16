@@ -1,7 +1,7 @@
 import type { Completion, DueInstance, Machine, Profile, Rule, TaskDefinition, TaskLedger, ValidationValue } from "@maintenance/shared";
 
-const apiBaseUrl = normalizeApiBase(import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL) || "/api";
-const authBaseUrl = import.meta.env.DEV ? "" : normalizeApiBase(import.meta.env.VITE_AUTH_BASE_URL);
+const apiBaseUrl = import.meta.env.DEV ? "/api" : normalizeApiBase(import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL) || "https://api.maintenance.lnks.info/api";
+const authBaseUrl = import.meta.env.DEV ? "" : normalizeApiBase(import.meta.env.VITE_AUTH_BASE_URL) || "https://auth.lnks.info";
 
 function normalizeApiBase(rawValue: string | undefined): string {
   const raw = String(rawValue ?? "").trim();
