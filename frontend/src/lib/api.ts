@@ -49,5 +49,8 @@ export const api = {
   deleteValidationValue: (id: string) => remove(`/validation-values/${id}`),
   createMachine: (machine: Omit<Machine, "id">) => post<Machine>("/machines", machine),
   updateMachine: (id: string, machine: Omit<Machine, "id">) => put<Machine>(`/machines/${encodeURIComponent(id)}`, machine),
+  archiveMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}/archive`),
+  deleteMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}`),
+  reorderMachines: (machineIds: string[]) => post<{ updated: number }>("/machines/reorder", { machineIds }),
   updateOdometer: (id: string, currentOdometer: number, currentOdometerDate: string) => fetch(`${apiBaseUrl}/machines/${id}/odometer`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentOdometer, currentOdometerDate }) })
 };

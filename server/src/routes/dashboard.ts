@@ -11,10 +11,11 @@ dashboardRouter.get("/", async (_req, res, next) => {
     const db = await getDb();
     const userId: string = res.locals.user.id;
     const [machines, rules, tasks, completions] = await Promise.all([
-      db.collection("machines").find({ userId, status: "Active" }).toArray(), db.collection("rules").find({ userId }).toArray(),
+      db.collection("machines").find({ userId, status: "Active", archived: { $ne: true } }).toArray(), db.collection("rules").find({ userId }).toArray(),
       db.collection("taskDefinitions").find({ userId }).toArray(), db.collection("completions").find({ userId }).toArray()
     ]);
-    const output = tasks.map((rawTask) => {
+    const activeMachineIds = new Set(machines.map((machine) => machine._id.toString()));
+    const output = tasks.filter((rawTask) => activeMachineIds.has(rawTask.machineId)).map((rawTask) => {
       const task = serialize(rawTask) as unknown as TaskDefinition;
       const machine = serialize(machines.find((row) => row._id.toString() === task.machineId) ?? {}) as unknown as Machine;
       const rule = serialize(rules.find((row) => row._id.toString() === task.ruleId) ?? {}) as unknown as Rule;

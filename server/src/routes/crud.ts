@@ -14,7 +14,13 @@ const schemas = {
 
 for (const collectionName of ["machines", "rules", "taskDefinitions", "completions"] as const) {
   crudRouter.get(`/${collectionName}`, async (_req, res, next) => {
-    try { const rows = await (await getDb()).collection(collectionName).find({ userId: res.locals.user.id }).toArray(); res.json(rows.map((row) => serialize(row))); } catch (error) { next(error); }
+    try {
+      const filter = collectionName === "machines"
+        ? { userId: res.locals.user.id, archived: { $ne: true } }
+        : { userId: res.locals.user.id };
+      const rows = await (await getDb()).collection(collectionName).find(filter).toArray();
+      res.json(rows.map((row) => serialize(row)));
+    } catch (error) { next(error); }
   });
   for (const method of ["post", "put"] as const) {
     crudRouter[method](method === "post" ? `/${collectionName}` : `/${collectionName}/:id`, async (req, res, next) => {

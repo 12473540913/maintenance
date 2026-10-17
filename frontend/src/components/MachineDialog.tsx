@@ -32,12 +32,47 @@ export function MachineDialog({ machine, onClose, onSaved }: {
   const dialog = useRef<HTMLDialogElement>(null);
   const [values, setValues] = useState(() => Object.fromEntries(fields.map(([key]) => [key, String(machine?.[key] ?? "")])));
   const [saving, setSaving] = useState(false);
+  const [itemAction, setItemAction] = useState<"archive" | "delete" | null>(null);
   const [error, setError] = useState("");
   const [imageFile, setImageFile] = useState<File>();
   const [removeImage, setRemoveImage] = useState(false);
   const hasImage = Boolean(imageFile || (!removeImage && (machine?.imageData || machine?.imageUrl)));
   const imageInput = useRef<HTMLInputElement>(null);
   useEffect(() => { dialog.current?.showModal(); }, []);
+
+  const archiveMachine = async () => {
+    if (!machine?.id) return;
+    setSaving(true);
+    setItemAction("archive");
+    setError("");
+    try {
+      await api.archiveMachine(machine.id);
+      await onSaved();
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not archive item.");
+    } finally {
+      setItemAction(null);
+      setSaving(false);
+    }
+  };
+
+  const deleteMachine = async () => {
+    if (!machine?.id || !window.confirm(`Permanently delete ${machine.name || machine.code} from your database? This cannot be undone.`)) return;
+    setSaving(true);
+    setItemAction("delete");
+    setError("");
+    try {
+      await api.deleteMachine(machine.id);
+      await onSaved();
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not delete item.");
+    } finally {
+      setItemAction(null);
+      setSaving(false);
+    }
+  };
 
   return <dialog ref={dialog} className="item-dialog" aria-label={machine ? "Edit item" : "Add item"} onCancel={(event) => {
     if (event.target !== event.currentTarget) return;
@@ -94,7 +129,16 @@ export function MachineDialog({ machine, onClose, onSaved }: {
           </div>}
         </Fragment>)}
       </fieldset>
-      <div className="form-actions"><button type="button" className="button subtle" onClick={onClose} disabled={saving}>Cancel</button><button className="button primary" disabled={saving}>{saving ? "Saving..." : "Save item"}</button></div>
+      <div className="form-actions">
+        {machine?.id && <div className="item-management-actions">
+          <button type="button" className="button danger-button" onClick={archiveMachine} disabled={saving}>{itemAction === "archive" ? "Archiving..." : "Archive item"}</button>
+          <button type="button" className="button danger-button" onClick={deleteMachine} disabled={saving}>{itemAction === "delete" ? "Deleting..." : "Delete item"}</button>
+        </div>}
+        <div className="item-save-actions">
+          <button type="button" className="button subtle" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="button primary" disabled={saving}>{saving ? "Saving..." : "Save item"}</button>
+        </div>
+      </div>
     </form>
   </dialog>;
 }

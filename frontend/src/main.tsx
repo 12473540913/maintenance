@@ -30,6 +30,19 @@ function App() {
     const [nextMachines, nextTasks, nextLedgers, nextCompletions] = await Promise.all([api.machines(), api.tasks(), api.ledgers(), api.completions()]);
     setMachines(nextMachines); setTasks(nextTasks); setLedgers(nextLedgers); setCompletions(nextCompletions); setLoaded(true); setError("");
   };
+  const saveMachineOrder = async (machineIds: string[]) => {
+    const previousMachines = machines;
+    const positions = new Map(machineIds.map((id, index) => [id, index]));
+    setMachines(machines
+      .map((machine) => ({ ...machine, shopOrder: positions.get(machine.id ?? "") ?? machine.shopOrder }))
+      .sort((a, b) => (positions.get(a.id ?? "") ?? Number.MAX_SAFE_INTEGER) - (positions.get(b.id ?? "") ?? Number.MAX_SAFE_INTEGER)));
+    try {
+      await api.reorderMachines(machineIds);
+    } catch (reason) {
+      setMachines(previousMachines);
+      throw reason;
+    }
+  };
   useEffect(() => {
     let disposed = false;
     const loadSession = async () => {
@@ -69,7 +82,7 @@ function App() {
       {error && <div className="alert" role="alert">{error} <button className="text-button" onClick={() => setLoadAttempt(loadAttempt + 1)}>Retry</button></div>}
       {!loaded && !error && view !== "profile" && <p className="loading" role="status">Loading your shop...</p>}
       {loaded && view === "tasks" && <TasksView machines={machines} tasks={tasks} ledgers={ledgers} completions={completions} onDirty={setDirty} onShop={() => navigate("shop")} onSaved={(saved) => setLedgers((current) => [...current.filter((ledger) => ledger.machineId !== saved.machineId), saved])} />}
-      {loaded && view === "shop" && <ShopView machines={machines} onSaved={loadData} />}
+      {loaded && view === "shop" && <ShopView machines={machines} onSaved={loadData} onReorder={saveMachineOrder} />}
       {view === "profile" && <ProfileView session={session} />}
     </div>
     <AuthFooter />

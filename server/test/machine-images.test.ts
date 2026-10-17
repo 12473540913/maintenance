@@ -87,7 +87,7 @@ describe("machine image persistence", () => {
     expect((await response.json()).imageData).toBe(largeImage);
     find.mockReturnValue({ toArray: async () => [{ _id: id, code: "CAR", type: "Car", imageData: largeImage }] } as ReturnType<typeof collection.find>);
     expect((await (await fetch(baseUrl)).json())[0].imageData).toBe(largeImage);
-    expect(find).toHaveBeenCalledWith({ userId });
+    expect(find).toHaveBeenCalledWith({ userId, archived: { $ne: true } });
   });
 
   it("replaces an image and clears the legacy URL", async () => {

@@ -84,6 +84,22 @@ beforeEach(async () => {
       if ("$set" in update) rows.forEach((row) => Object.assign(row, update.$set));
       return { acknowledged: true, matchedCount: rows.length, modifiedCount: rows.length, upsertedCount: 0, upsertedId: null };
     });
+    vi.spyOn(collection, "bulkWrite").mockImplementation(async (operations) => {
+      let matchedCount = 0;
+      for (const operation of operations) {
+        if ("updateOne" in operation) {
+          const row = data[name].find((row) => matches(row, operation.updateOne.filter));
+          if (row && "$set" in operation.updateOne.update) {
+            Object.assign(row, operation.updateOne.update.$set);
+            matchedCount += 1;
+          }
+        }
+      }
+      return {
+        acknowledged: true, insertedCount: 0, matchedCount, modifiedCount: matchedCount,
+        deletedCount: 0, upsertedCount: 0, insertedIds: {}, upsertedIds: {}
+      } as Awaited<ReturnType<typeof collection.bulkWrite>>;
+    });
     vi.spyOn(collection, "deleteOne").mockImplementation(async (filter) => {
       const index = data[name].findIndex((row) => matches(row, filter));
       if (index !== -1) data[name].splice(index, 1);
@@ -187,6 +203,29 @@ describe("user-owned API data", () => {
     expect(data.machines[0].currentOdometer).toBe(10);
     expect((await request(`task-ledgers/${machineId}`, other, "PUT", { sections: [] })).status).toBe(404);
     expect((await request(`task-ledgers/${machineId}`, owner, "PUT", { sections: [] })).status).toBe(200);
+  });
+
+  it("archives only owned machines and hides archived items from lists and dashboard", async () => {
+    expect((await request(`machines/${machineId}/archive`, other, "PATCH")).status).toBe(404);
+    expect(data.machines[0].archived).toBeUndefined();
+    expect((await request(`machines/${machineId}/archive`, owner, "PATCH")).status).toBe(204);
+    expect(data.machines[0].archived).toBe(true);
+    expect(await (await request("machines", owner)).json()).toEqual([]);
+    expect(await (await request("dashboard", owner)).json()).toEqual([]);
+  });
+
+  it("persists a complete, unique order for only the requesting user's machines", async () => {
+    const secondMachineId = new ObjectId();
+    data.machines.push({ _id: secondMachineId, userId: owner, code: "BIKE", type: "Motorcycle" });
+    data.machines.push({ _id: new ObjectId(), userId: owner, code: "ARCHIVED", type: "Car", archived: true });
+    const machineIds = [secondMachineId.toHexString(), machineId.toHexString()];
+
+    expect((await request("machines/reorder", other, "POST", { machineIds })).status).toBe(400);
+    expect((await request("machines/reorder", owner, "POST", { machineIds: [machineIds[0], machineIds[0]] })).status).toBe(400);
+    expect((await request("machines/reorder", owner, "POST", { machineIds: [machineIds[0]] })).status).toBe(400);
+    expect((await request("machines/reorder", owner, "POST", { machineIds })).status).toBe(200);
+    expect(data.machines.find((row) => row._id === secondMachineId)?.shopOrder).toBe(0);
+    expect(data.machines.find((row) => row._id === machineId)?.shopOrder).toBe(1);
   });
 
   it("hides old foreign-machine ledgers and unowned legacy data", async () => {

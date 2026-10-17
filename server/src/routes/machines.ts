@@ -1,9 +1,61 @@
 import { Router } from "express";
+import { z } from "zod";
 import { MachineSchema } from "@maintenance/shared";
 import { getDb } from "../db/mongo.js";
 import { oid, serialize } from "../db/helpers.js";
 
 export const machinesRouter = Router();
+
+const ReorderMachinesSchema = z.object({
+  machineIds: z.array(z.string().regex(/^[\da-f]{24}$/i))
+});
+
+machinesRouter.post("/reorder", async (req, res, next) => {
+  try {
+    const { machineIds } = ReorderMachinesSchema.parse(req.body);
+    if (new Set(machineIds).size !== machineIds.length) {
+      res.status(400).json({ error: "Machine order cannot contain duplicates." });
+      return;
+    }
+
+    const userId: string = res.locals.user.id;
+    const machines = (await getDb()).collection("machines");
+    const ownedMachines = await machines.find({ userId, archived: { $ne: true } }).project<{ _id: { toString(): string } }>({ _id: 1 }).toArray();
+    const ownedIds = new Set(ownedMachines.map(({ _id }) => _id.toString()));
+    if (machineIds.length !== ownedIds.size || machineIds.some((id) => !ownedIds.has(id))) {
+      res.status(400).json({ error: "Machine order must include all of your machines." });
+      return;
+    }
+    if (machineIds.length === 0) {
+      res.json({ updated: 0 });
+      return;
+    }
+
+    const result = await machines.bulkWrite(machineIds.map((id, shopOrder) => ({
+      updateOne: {
+        filter: { _id: oid(id), userId },
+        update: { $set: { shopOrder } }
+      }
+    })));
+    if (result.matchedCount !== machineIds.length) {
+      res.status(409).json({ error: "Your machines changed while saving their order. Reload and try again." });
+      return;
+    }
+    res.json({ updated: result.matchedCount });
+  } catch (error) { next(error); }
+});
+
+machinesRouter.patch("/:id/archive", async (req, res, next) => {
+  try {
+    const machines = (await getDb()).collection("machines");
+    const result = await machines.updateOne(
+      { _id: oid(req.params.id), userId: res.locals.user.id },
+      { $set: { archived: true } }
+    );
+    if (!result.matchedCount) { res.status(404).json({ error: "Item not found." }); return; }
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
 
 machinesRouter.patch("/:id/odometer", async (req, res, next) => {
   try {

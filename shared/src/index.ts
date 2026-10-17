@@ -17,6 +17,8 @@ export const MachineSchema = z.object({
   code: z.string(),
   type: z.string(),
   name: z.string().optional(),
+  shopOrder: z.number().int().nonnegative().optional(),
+  archived: z.boolean().optional(),
   imageUrl: z.string().optional(),
   imageData: z.union([MachineImageSchema, z.literal("")]).optional(),
   year: z.union([z.string(), z.number().int().min(1800).max(3000)]).optional(),
