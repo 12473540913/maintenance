@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MachineSchema, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
-import { initialLedger, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
+import { initialLedger, moveAnnualInspectionTask, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
 
 const tasks: TaskDefinition[] = [
   { id: "t1", machineId: "m1", name: "Change oil", category: "Engine", ruleId: "r1", notes: "Use specified oil" },
@@ -10,6 +10,44 @@ const tasks: TaskDefinition[] = [
 ];
 
 describe("manual task ledgers", () => {
+  it("moves annual inspection tasks up and down within and across sections", () => {
+    const sections = [{ id: "engine", name: "Engine" }, { id: "brakes", name: "Brakes" }];
+    const tasks = [
+      { id: "task-1", description: "Oil", sectionId: "engine" },
+      { id: "task-2", description: "Filter", sectionId: "engine" },
+      { id: "task-3", description: "Pads", sectionId: "brakes" },
+      { id: "task-4", description: "Rotor", sectionId: "brakes" }
+    ];
+
+    expect(moveAnnualInspectionTask(tasks, sections, "task-2", -1).map((task) => task.id)).toEqual(["task-2", "task-1", "task-3", "task-4"]);
+    expect(moveAnnualInspectionTask(tasks, sections, "task-2", 1)).toEqual([
+      tasks[0],
+      { ...tasks[1], sectionId: "brakes" },
+      tasks[2],
+      tasks[3]
+    ]);
+    expect(moveAnnualInspectionTask(tasks, sections, "task-3", -1)).toEqual([
+      tasks[0],
+      tasks[1],
+      { ...tasks[2], sectionId: "engine" },
+      tasks[3]
+    ]);
+    expect(moveAnnualInspectionTask(tasks, sections, "task-1", -1)).toBe(tasks);
+    expect(moveAnnualInspectionTask(tasks, sections, "task-4", 1)).toBe(tasks);
+    expect(tasks.map((task) => task.id)).toEqual(["task-1", "task-2", "task-3", "task-4"]);
+  });
+  it("moves annual inspection tasks into adjacent empty sections", () => {
+    const sections = [{ id: "engine", name: "Engine" }, { id: "fluids", name: "Fluids" }, { id: "brakes", name: "Brakes" }];
+    const tasks = [
+      { id: "task-1", description: "Oil", sectionId: "engine" },
+      { id: "task-2", description: "Pads", sectionId: "brakes" }
+    ];
+    const movedIntoEmpty = moveAnnualInspectionTask(tasks, sections, "task-1", 1);
+    expect(movedIntoEmpty.find((task) => task.id === "task-1")?.sectionId).toBe("fluids");
+    expect(movedIntoEmpty.filter((task) => task.sectionId === "fluids").map((task) => task.id)).toEqual(["task-1"]);
+    const movedIntoBrakes = moveAnnualInspectionTask(movedIntoEmpty, sections, "task-1", 1);
+    expect(movedIntoBrakes.filter((task) => task.sectionId === "brakes").map((task) => task.id)).toEqual(["task-1", "task-2"]);
+  });
   it("groups existing tasks by item and section without changing their source", () => {
     const ledger = initialLedger("m1", [], tasks);
     expect(ledger.sections.map((section) => section.name)).toEqual(["Engine", "Wheels"]);
@@ -108,6 +146,17 @@ describe("manual task ledgers", () => {
     const ledger: TaskLedger = { machineId: "m1", sections: [{ id: "s1", name: "Any section", rows: [{ id: "t1", code: "ENG-1", action: "Inspect", description: "Check everything", timeline: [{ id: "e1", label: "5k / Jul 07", value: "NA" }, { id: "e2", label: "Whenever", value: "Not yet" }] }] }] };
     expect(TaskLedgerSchema.parse(JSON.parse(JSON.stringify(ledger)))).toEqual(ledger);
     expect(TaskLedgerSchema.safeParse({ machineId: "", sections: [] }).success).toBe(false);
+  });
+  it("round-trips annual inspection sections and task assignments while accepting older ledgers", () => {
+    const legacy = { machineId: "m1", sections: [], annualInspectionTasks: [{ id: "task-1", description: "Check brakes" }] };
+    expect(TaskLedgerSchema.parse(legacy)).toEqual(legacy);
+
+    const ledger: TaskLedger = {
+      ...legacy,
+      annualInspectionSections: [{ id: "brakes", name: "Brakes" }],
+      annualInspectionTasks: [{ id: "task-1", description: "Check brakes", sectionId: "brakes" }]
+    };
+    expect(TaskLedgerSchema.parse(JSON.parse(JSON.stringify(ledger)))).toEqual(ledger);
   });
   it("preserves status colors through the legacy label field", () => {
     const entry = { id: "e1", label: "", value: "10,000" };

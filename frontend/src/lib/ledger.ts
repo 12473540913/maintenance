@@ -1,6 +1,44 @@
-import type { Completion, TaskDefinition, TaskLedger } from "@maintenance/shared";
+import type { AnnualInspectionSection, AnnualInspectionTask, Completion, TaskDefinition, TaskLedger } from "@maintenance/shared";
 
 export type TimelineColor = "red" | "green" | "orange" | "blue";
+
+export function moveAnnualInspectionTask(
+  tasks: AnnualInspectionTask[],
+  sections: AnnualInspectionSection[],
+  taskId: string,
+  offset: -1 | 1
+): AnnualInspectionTask[] {
+  const sectionIds = new Set(sections.map((section) => section.id));
+  const unsectionedTasks = tasks.filter((task) => !task.sectionId || !sectionIds.has(task.sectionId));
+  const groups = [
+    ...(unsectionedTasks.length ? [{ sectionId: undefined, tasks: unsectionedTasks }] : []),
+    ...sections.map((section) => ({ sectionId: section.id, tasks: tasks.filter((task) => task.sectionId === section.id) }))
+  ];
+  const groupIndex = groups.findIndex((group) => group.tasks.some((task) => task.id === taskId));
+  if (groupIndex < 0) return tasks;
+  const group = groups[groupIndex];
+  const taskIndex = group.tasks.findIndex((task) => task.id === taskId);
+  const target = group.tasks[taskIndex + offset];
+  const nextTasks = [...tasks];
+
+  if (target) {
+    const sourceIndex = nextTasks.findIndex((entry) => entry.id === taskId);
+    const targetIndex = nextTasks.findIndex((entry) => entry.id === target.id);
+    [nextTasks[sourceIndex], nextTasks[targetIndex]] = [nextTasks[targetIndex], nextTasks[sourceIndex]];
+    return nextTasks;
+  }
+
+  const targetGroup = groups[groupIndex + offset];
+  if (!targetGroup) return tasks;
+  const task = group.tasks[taskIndex];
+  const movedTask: AnnualInspectionTask = { ...task, sectionId: targetGroup.sectionId };
+  if (!targetGroup.sectionId) delete movedTask.sectionId;
+  nextTasks.splice(nextTasks.findIndex((entry) => entry.id === taskId), 1);
+  const anchor = offset === -1 ? targetGroup.tasks[targetGroup.tasks.length - 1] : targetGroup.tasks[0];
+  const anchorIndex = anchor ? nextTasks.findIndex((entry) => entry.id === anchor.id) + (offset === -1 ? 1 : 0) : nextTasks.length;
+  nextTasks.splice(anchorIndex, 0, movedTask);
+  return nextTasks;
+}
 
 export function moveLedgerSection(ledger: TaskLedger, sectionId: string, offset: -1 | 1): TaskLedger {
   const index = ledger.sections.findIndex((section) => section.id === sectionId);

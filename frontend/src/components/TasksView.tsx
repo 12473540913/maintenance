@@ -73,7 +73,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
         <p className="ledger-odometer"><strong>{odometerValue}</strong></p>
         {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
         setSaving(true); setError("");
-        try { const saved = await api.saveLedger({ ...draft, annualInspectionTasks: ledger.annualInspectionTasks, annualInspectionInstance: ledger.annualInspectionInstance }); onSaved(saved); setDirty(false); onDirty(false); }
+        try { const saved = await api.saveLedger({ ...draft, annualInspectionTasks: ledger.annualInspectionTasks, annualInspectionSections: ledger.annualInspectionSections, annualInspectionInstance: ledger.annualInspectionInstance }); onSaved(saved); setDirty(false); onDirty(false); }
         catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save tasks."); }
         finally { setSaving(false); }
       }}>{saving ? "Saving..." : "Save changes"}</button></div>}

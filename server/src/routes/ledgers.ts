@@ -11,7 +11,7 @@ ledgersRouter.get("/", async (_req, res, next) => {
     const userId: string = res.locals.user.id;
     const machineIds = (await db.collection("machines").distinct("_id", { userId })).map((id) => id.toString());
     const rows = await db.collection("taskLedgers").find({ userId, machineId: { $in: machineIds } }).toArray();
-    res.json(rows.map(({ machineId, sections, annualInspectionTasks, annualInspectionInstance }) => ({ machineId, sections, annualInspectionTasks, annualInspectionInstance })));
+    res.json(rows.map(({ machineId, sections, annualInspectionTasks, annualInspectionSections, annualInspectionInstance }) => ({ machineId, sections, annualInspectionTasks, annualInspectionSections, annualInspectionInstance })));
   } catch (error) { next(error); }
 });
 

@@ -54,10 +54,16 @@ export const LedgerRowSchema = z.object({
 export const AnnualInspectionTaskSchema = z.object({
   id: z.string().min(1),
   description: z.string(),
+  sectionId: z.string().min(1).optional(),
   // Legacy instance fields from before instances were stored separately.
   clientNotes: z.string().optional(),
   inspectionNotes: z.string().optional(),
   checked: z.boolean().optional()
+});
+
+export const AnnualInspectionSectionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string()
 });
 
 export const AnnualInspectionInstanceTaskSchema = z.object({
@@ -79,12 +85,13 @@ export const TaskLedgerSchema = z.object({
     rows: z.array(LedgerRowSchema)
   })),
   annualInspectionTasks: z.array(AnnualInspectionTaskSchema).optional(),
+  annualInspectionSections: z.array(AnnualInspectionSectionSchema).optional(),
   annualInspectionInstance: AnnualInspectionInstanceSchema.optional()
 });
-
 export const ProfileSchema = z.object({ username: z.string().trim().min(3).max(100) });
 export type TaskLedger = z.infer<typeof TaskLedgerSchema>;
 export type AnnualInspectionTask = z.infer<typeof AnnualInspectionTaskSchema>;
+export type AnnualInspectionSection = z.infer<typeof AnnualInspectionSectionSchema>;
 export type AnnualInspectionInstance = z.infer<typeof AnnualInspectionInstanceSchema>;
 export type AnnualInspectionInstanceTask = z.infer<typeof AnnualInspectionInstanceTaskSchema>;
 export type LedgerSection = TaskLedger["sections"][number];

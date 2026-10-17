@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import type { AnnualInspectionInstance, AnnualInspectionInstanceTask, AnnualInspectionTask, Machine, TaskLedger } from "@maintenance/shared";
+import type { AnnualInspectionInstance, AnnualInspectionInstanceTask, AnnualInspectionSection, AnnualInspectionTask, Machine, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
+import { moveAnnualInspectionTask } from "../lib/ledger";
 import { itemName } from "./ShopView";
 
 type ChecklistMode = "edit" | "instance" | "preview" | "print-preview";
 type InstanceValues = Record<string, AnnualInspectionInstanceTask>;
 
-function createTask(): AnnualInspectionTask {
-  return { id: crypto.randomUUID(), description: "" };
+function createTask(sectionId?: string): AnnualInspectionTask {
+  return { id: crypto.randomUUID(), description: "", ...(sectionId ? { sectionId } : {}) };
 }
 
 function coreTasks(ledger: TaskLedger): AnnualInspectionTask[] {
-  return (ledger.annualInspectionTasks ?? []).map(({ id, description }) => ({ id, description }));
+  return (ledger.annualInspectionTasks ?? []).map(({ id, description, sectionId }) => ({ id, description, sectionId }));
+}
+
+function coreSections(ledger: TaskLedger): AnnualInspectionSection[] {
+  return (ledger.annualInspectionSections ?? []).map(({ id, name }) => ({ id, name }));
 }
 
 function emptyInstanceTask(taskId: string): AnnualInspectionInstanceTask {
@@ -40,6 +45,7 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [tasks, setTasks] = useState(() => coreTasks(ledger));
+  const [sections, setSections] = useState(() => coreSections(ledger));
   const [instance, setInstance] = useState(() => savedInstance(ledger));
   const [mode, setMode] = useState<ChecklistMode>("preview");
   const [coreDirty, setCoreDirty] = useState(false);
@@ -47,6 +53,7 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const savedTasks = coreTasks(ledger);
+  const savedSections = coreSections(ledger);
 
   useEffect(() => { dialog.current?.showModal(); }, []);
 
@@ -56,7 +63,7 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
     onClose();
   };
 
-  const persist = async (next: Pick<TaskLedger, "annualInspectionTasks" | "annualInspectionInstance">, fallbackError: string) => {
+  const persist = async (next: Pick<TaskLedger, "annualInspectionTasks" | "annualInspectionSections" | "annualInspectionInstance">, fallbackError: string) => {
     setSaving(true);
     setError("");
     try {
@@ -71,15 +78,25 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
   };
 
   const saveCore = async () => {
-    if (await persist({ annualInspectionTasks: tasks, annualInspectionInstance: toInstance(savedTasks, savedInstance(ledger)) }, "Could not save annual inspection tasks.")) setCoreDirty(false);
+    if (await persist({ annualInspectionTasks: tasks, annualInspectionSections: sections, annualInspectionInstance: toInstance(savedTasks, savedInstance(ledger)) }, "Could not save annual inspection tasks.")) setCoreDirty(false);
   };
 
   const saveInstance = async () => {
-    if (await persist({ annualInspectionTasks: savedTasks, annualInspectionInstance: toInstance(savedTasks, instance) }, "Could not save inspection instance.")) setInstanceDirty(false);
+    if (await persist({ annualInspectionTasks: savedTasks, annualInspectionSections: savedSections, annualInspectionInstance: toInstance(savedTasks, instance) }, "Could not save inspection instance.")) setInstanceDirty(false);
   };
 
   const updateTask = (taskId: string, description: string) => {
     setTasks((current) => current.map((task) => task.id === taskId ? { ...task, description } : task));
+    setCoreDirty(true);
+  };
+
+  const updateSection = (sectionId: string, name: string) => {
+    setSections((current) => current.map((section) => section.id === sectionId ? { ...section, name } : section));
+    setCoreDirty(true);
+  };
+
+  const moveTask = (taskId: string, offset: -1 | 1) => {
+    setTasks((current) => moveAnnualInspectionTask(current, sections, taskId, offset));
     setCoreDirty(true);
   };
 
@@ -93,6 +110,21 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
   const previewing = mode === "preview";
   const printPreview = mode === "print-preview";
   const visibleTasks = instanceMode || printPreview ? savedTasks : tasks;
+  const visibleSections = instanceMode || printPreview ? savedSections : sections;
+  const sectionIds = new Set(visibleSections.map((section) => section.id));
+  const taskGroups = [
+    {
+      id: "unsectioned",
+      section: undefined,
+      tasks: visibleTasks.filter((task) => !task.sectionId || !sectionIds.has(task.sectionId))
+    },
+    ...visibleSections.map((section) => ({
+      id: section.id,
+      section,
+      tasks: visibleTasks.filter((task) => task.sectionId === section.id)
+    }))
+  ].filter((group) => group.tasks.length > 0 || group.section);
+  const taskNumbers = new Map(taskGroups.flatMap((group) => group.tasks).map((task, index) => [task.id, index + 1]));
 
   return <dialog ref={dialog} className="annual-inspection-dialog" aria-labelledby="annual-inspection-title" onCancel={(event) => {
     event.preventDefault();
@@ -129,19 +161,43 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
     {error && <div className="alert" role="alert">{error}</div>}
     <div className={`annual-inspection-content${printPreview ? " is-print-preview" : ""}`}>
       {!visibleTasks.length && <p className="annual-inspection-empty">No annual inspection tasks yet.</p>}
-      <ol className={`annual-inspection-list${previewing ? " task-preview-list" : ""}${printPreview ? " print-preview-list" : ""}`}>
-        {visibleTasks.map((task, taskIndex) => {
-          const values = instance[task.id] ?? emptyInstanceTask(task.id);
-          return <li className="annual-inspection-task" key={task.id}>
-            <span className="annual-inspection-number" aria-hidden="true" />
+      {taskGroups.map(({ id, section, tasks: groupTasks }) => <section className="annual-inspection-group" key={id}>
+        {section && (editing
+          ? <div className="annual-inspection-section-edit">
+            <input aria-label="Section title" type="text" value={section.name} onChange={(event) => updateSection(section.id, event.target.value)} disabled={saving} />
+            <button type="button" className="annual-inspection-remove" aria-label={`Remove section ${section.name || "title"}`} title="Remove section" onClick={() => {
+              setSections((current) => current.filter((entry) => entry.id !== section.id));
+              setTasks((current) => current.map((task) => {
+                if (task.sectionId !== section.id) return task;
+                const { sectionId: _sectionId, ...taskWithoutSection } = task;
+                return taskWithoutSection;
+              }));
+              setCoreDirty(true);
+            }} disabled={saving}>×</button>
+          </div>
+          : <h3 className="annual-inspection-section-title">{section.name || <span className="not-set">Section title</span>}</h3>)}
+        <ol className={`annual-inspection-list${previewing ? " task-preview-list" : ""}${printPreview ? " print-preview-list" : ""}`}>
+          {groupTasks.map((task) => {
+            const taskNumber = taskNumbers.get(task.id) ?? 0;
+            const groupIndex = taskGroups.findIndex((group) => group.tasks.some((entry) => entry.id === task.id));
+            const taskIndex = groupTasks.findIndex((entry) => entry.id === task.id);
+            const canMoveUp = taskIndex > 0 || groupIndex > 0;
+            const canMoveDown = taskIndex < groupTasks.length - 1 || groupIndex < taskGroups.length - 1;
+            const values = instance[task.id] ?? emptyInstanceTask(task.id);
+            return <li className="annual-inspection-task" key={task.id}>
+            <span className="annual-inspection-number" aria-hidden="true">{taskNumber}.</span>
             <div className="annual-inspection-task-content">
               {editing
                 ? <div className="annual-inspection-description-input">
                   <input aria-label="Task description" type="text" value={task.description} onChange={(event) => updateTask(task.id, event.target.value)} disabled={saving} />
-                  <button type="button" className="annual-inspection-remove" aria-label={`Remove task ${taskIndex + 1}`} title="Remove task" onClick={() => {
-                    setTasks((current) => current.filter((entry) => entry.id !== task.id));
-                    setCoreDirty(true);
-                  }} disabled={saving}>×</button>
+                  <div className="annual-inspection-task-actions">
+                    <button type="button" className="annual-inspection-remove" aria-label={`Remove task ${taskNumber}`} title="Remove task" onClick={() => {
+                      setTasks((current) => current.filter((entry) => entry.id !== task.id));
+                      setCoreDirty(true);
+                    }} disabled={saving}>×</button>
+                    <button type="button" className="text-button task-row-move" aria-label={`Move task ${taskNumber} up`} title="Move task up" disabled={!canMoveUp || saving} onClick={() => moveTask(task.id, -1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 7.5 4-4 4 4" /></svg></button>
+                    <button type="button" className="text-button task-row-move" aria-label={`Move task ${taskNumber} down`} title="Move task down" disabled={!canMoveDown || saving} onClick={() => moveTask(task.id, 1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
+                  </div>
                 </div>
                 : <span className="annual-inspection-description">{task.description || <span className="not-set">Task description</span>}</span>}
               {(instanceMode || printPreview) && <div className="annual-inspection-notes">
@@ -159,18 +215,23 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
             {!editing && <input
               className="annual-inspection-checkbox"
               type="checkbox"
-              aria-label={`Task ${taskIndex + 1} complete`}
+              aria-label={`Task ${taskNumber} complete`}
               checked={previewing ? false : values.checked}
               disabled={!instanceMode || saving}
               onChange={(event) => updateInstance(task.id, (current) => ({ ...current, checked: event.target.checked }))}
             />}
-          </li>;
-        })}
-      </ol>
+            </li>;
+          })}
+        </ol>
+      </section>)}
       {editing && <button type="button" className="button subtle annual-inspection-add" onClick={() => {
-        setTasks((current) => [...current, createTask()]);
+        setTasks((current) => [...current, createTask(sections[sections.length - 1]?.id)]);
         setCoreDirty(true);
       }} disabled={saving}>+ Add task</button>}
+      {editing && <button type="button" className="button subtle annual-inspection-add-section" onClick={() => {
+        setSections((current) => [...current, { id: crypto.randomUUID(), name: "New section" }]);
+        setCoreDirty(true);
+      }} disabled={saving}>+ Add section</button>}
     </div>
   </dialog>;
 }
