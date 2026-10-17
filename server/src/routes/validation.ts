@@ -10,7 +10,7 @@ validationRouter.get("/", async (req, res, next) => {
     const category = typeof req.query.category === "string" ? req.query.category : undefined;
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const core = req.query.core === "false" ? false : req.query.core === "true" ? true : undefined;
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { $or: [{ core: true }, { userId: res.locals.user.id }] };
     if (category) filter.category = category;
     if (core !== undefined) filter.core = core;
     if (query) filter.value = { $regex: query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
@@ -24,9 +24,12 @@ validationRouter.post("/", async (req, res, next) => {
   try {
     const value = ValidationValueSchema.parse({ ...req.body, core: false });
     const db = await getDb();
-    const duplicate = await db.collection("validationValues").findOne({ category: value.category, value: value.value });
+    const duplicate = await db.collection("validationValues").findOne({
+      category: value.category, value: value.value,
+      $or: [{ core: true }, { userId: res.locals.user.id }]
+    });
     if (duplicate) return res.status(409).json({ error: "That value already exists." });
-    const result = await db.collection("validationValues").insertOne(value);
+    const result = await db.collection("validationValues").insertOne({ ...value, userId: res.locals.user.id });
     res.status(201).json({ ...value, id: result.insertedId.toString() });
   } catch (error) { next(error); }
 });
@@ -34,10 +37,12 @@ validationRouter.post("/", async (req, res, next) => {
 validationRouter.delete("/:id", async (req, res, next) => {
   try {
     const db = await getDb();
-    const value = await db.collection("validationValues").findOne({ _id: oid(req.params.id) });
+    const value = await db.collection("validationValues").findOne({
+      _id: oid(req.params.id), $or: [{ core: true }, { userId: res.locals.user.id }]
+    });
     if (!value) return res.status(404).json({ error: "Validation value not found." });
     if (value.core) return res.status(403).json({ error: "Core validation values cannot be removed." });
-    await db.collection("validationValues").deleteOne({ _id: value._id });
+    await db.collection("validationValues").deleteOne({ _id: value._id, userId: res.locals.user.id, core: { $ne: true } });
     res.status(204).end();
   } catch (error) { next(error); }
 });

@@ -41,6 +41,9 @@ export async function getDb(): Promise<Db> {
         userAppBlobs.createIndex({ userId: 1, appId: 1 }, { unique: true }),
         userAppSettings.createIndex({ userId: 1, appId: 1 }, { unique: true }),
         pendingDatabase.collection("taskLedgers").createIndex({ userId: 1, machineId: 1 }, { unique: true }),
+        ...["machines", "rules", "taskDefinitions", "completions", "validationValues"].map(
+          (name) => pendingDatabase.collection(name).createIndex({ userId: 1 })
+        ),
         machines.updateMany({ spec: { $exists: true }, spec1: { $exists: false } }, { $rename: { spec: "spec1" } }),
         machines.updateMany({ status: "active" }, { $set: { status: "Active" } }),
         machines.updateMany({ status: "pending" }, { $set: { status: "Pending" } }),

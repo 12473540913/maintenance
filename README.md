@@ -64,9 +64,15 @@ npm run dev
 
 If your network permits public DNS, add `MONGODB_DNS_SERVERS=1.1.1.1,8.8.8.8` to `.env.development` and restart the API. This explicitly replaces Node's DNS resolver servers for SRV/TXT and other `dns.resolve*` calls throughout the API process; it does not change Windows DNS settings or hostname lookups through `dns.lookup`. Leave it unset to retain the system resolver. Use DNS servers approved for your network; the app never switches to public DNS automatically.
 
-Alternatively, set `MONGODB_URI` to a standard `mongodb://` connection string supplied by Atlas. That avoids SRV/TXT discovery, but still requires hostname resolution and network access. Keep all Atlas-provided hosts, replica-set, authentication, and TLS settings; do not guess the hosts or disable TLS. Neither option changes the selected database: local development uses `maintenance-dev`, and production uses `maintenance`. Keep auth-service pointed at the same database.
+Alternatively, set `MONGODB_URI` to a standard `mongodb://` connection string supplied by Atlas. That avoids SRV/TXT discovery, but still requires hostname resolution and network access. Keep all Atlas-provided hosts, replica-set, authentication, and TLS settings; do not guess the hosts or disable TLS. Neither DNS option changes the selected database. Explicitly configure `maintenance-dev` for local development and `maintenance` for production, and keep auth-service pointed at the same database. Omitting the database path from a URI can select MongoDB's default `test` database.
 
 Concurrent requests share one connection attempt. A failed connection or database initialization is closed and discarded so the next request (including the UI's **Retry** button) can try again. The API only caches the database after initialization succeeds; failures remain visible rather than returning empty data.
+
+#### Data ownership and existing production data
+
+Shop items, rules, task definitions, completions and ledgers are private to the signed-in user through a string `userId` field. The server assigns ownership and scopes reads, updates, deletes, related-record references and dashboard queries to that user. Ledgers also require ownership of the referenced item. Custom dropdown values are user-owned; built-in (`core: true`) dropdown values remain shared and cannot be deleted.
+
+Legacy records without ownership are hidden, not automatically claimed by the next person who signs in. Use the dry-run-first [production migration runbook](database/PRODUCTION-MIGRATION.md) to copy an existing `test` database into `maintenance`, preserve both accounts and assign legacy data to the confirmed original owner. Do not change only the connection strings or rerun the seed.
 
 ### Authentication
 
@@ -178,5 +184,4 @@ If later you need explicit deferred/skipped/acknowledged occurrences, add a smal
 - service-provider history
 - cost reporting
 - odometer history
-- auth / multiple users (add `ownerId` to collections)
 - JSON backup/export

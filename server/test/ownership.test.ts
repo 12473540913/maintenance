@@ -1,0 +1,289 @@
+import express from "express";
+import { MongoClient, ObjectId, type Document } from "mongodb";
+import type { Server } from "node:http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getDb } from "../src/db/mongo.js";
+import { crudRouter } from "../src/routes/crud.js";
+import { machinesRouter } from "../src/routes/machines.js";
+import { ledgersRouter } from "../src/routes/ledgers.js";
+import { dashboardRouter } from "../src/routes/dashboard.js";
+import { validationRouter } from "../src/routes/validation.js";
+import { claimOwnership, planOwnership } from "../src/migrate-ownership.js";
+
+vi.mock("../src/db/mongo.js", () => ({ getDb: vi.fn() }));
+
+const owner = new ObjectId().toHexString();
+const other = new ObjectId().toHexString();
+const machineId = new ObjectId();
+const ruleId = new ObjectId();
+const taskId = new ObjectId();
+const completionId = new ObjectId();
+const customId = new ObjectId();
+const coreId = new ObjectId();
+let data: Record<string, Document[]>;
+let server: Server;
+let baseUrl: string;
+
+function matches(row: Document, filter: Document): boolean {
+  return Object.entries(filter).every(([key, value]) => {
+    if (key === "$or") return value.some((branch: Document) => matches(row, branch));
+    if (value instanceof ObjectId) return row[key]?.toString() === value.toHexString();
+    if (value && typeof value === "object") {
+      if ("$in" in value) return value.$in.includes(row[key]);
+      if ("$ne" in value) return row[key] !== value.$ne;
+      throw new Error(`Unsupported test filter: ${key}`);
+    }
+    return value === null ? row[key] == null : row[key] === value;
+  });
+}
+
+beforeEach(async () => {
+  data = {
+    users: [{ _id: new ObjectId(owner), email: "owner@example.test" }, { _id: new ObjectId(other), email: "other@example.test" }],
+    machines: [{ _id: machineId, userId: owner, code: "CAR", type: "Car", status: "Active" }],
+    rules: [{ _id: ruleId, userId: owner, name: "Oil", kind: "mileage", mileageInterval: 5000 }],
+    taskDefinitions: [{ _id: taskId, userId: owner, machineId: machineId.toHexString(), ruleId: ruleId.toHexString(), name: "Oil", category: "Engine" }],
+    completions: [{ _id: completionId, userId: owner, taskDefinitionId: taskId.toHexString(), completedAt: "2026-01-01" }],
+    taskLedgers: [{ _id: new ObjectId(), userId: owner, machineId: machineId.toHexString(), sections: [] }],
+    validationValues: [
+      { _id: customId, userId: owner, category: "make", value: "Custom", core: false },
+      { _id: coreId, category: "type", value: "Car", core: true }
+    ]
+  };
+  const db = new MongoClient("mongodb://localhost:27017/ownership-test").db();
+  const collections = new Map(Object.keys(data).map((name) => [name, db.collection(name)]));
+  for (const [name, collection] of collections) {
+    const find = collection.find.bind(collection);
+    vi.spyOn(collection, "find").mockImplementation((filter = {}, options) => {
+      const cursor = find(filter, options);
+      vi.spyOn(cursor, "toArray").mockImplementation(async () => data[name].filter((row) => matches(row, filter)));
+      const sort = cursor.sort.bind(cursor);
+      vi.spyOn(cursor, "sort").mockImplementation((...args) => { sort(...args); return cursor; });
+      return cursor;
+    });
+    vi.spyOn(collection, "findOne").mockImplementation(async (filter) => data[name].find((row) => matches(row, filter)) ?? null);
+    vi.spyOn(collection, "countDocuments").mockImplementation(async (filter = {}) => data[name].filter((row) => matches(row, filter)).length);
+    vi.spyOn(collection, "distinct").mockImplementation(async (key, filter = {}) => data[name].filter((row) => matches(row, filter)).map((row) => row[key]));
+    vi.spyOn(collection, "insertOne").mockImplementation(async (row) => {
+      const _id = new ObjectId();
+      data[name].push({ ...row, _id });
+      return { acknowledged: true, insertedId: _id };
+    });
+    vi.spyOn(collection, "updateOne").mockImplementation(async (filter, update, options) => {
+      let row = data[name].find((row) => matches(row, filter));
+      const matchedCount = row ? 1 : 0;
+      if (!row && options?.upsert) {
+        row = { ...filter, _id: new ObjectId() };
+        data[name].push(row);
+      }
+      if (row && "$set" in update) Object.assign(row, update.$set);
+      return { acknowledged: true, matchedCount, modifiedCount: matchedCount, upsertedCount: matchedCount ? 0 : row ? 1 : 0, upsertedId: null };
+    });
+    vi.spyOn(collection, "updateMany").mockImplementation(async (filter, update) => {
+      const rows = data[name].filter((row) => matches(row, filter));
+      if ("$set" in update) rows.forEach((row) => Object.assign(row, update.$set));
+      return { acknowledged: true, matchedCount: rows.length, modifiedCount: rows.length, upsertedCount: 0, upsertedId: null };
+    });
+    vi.spyOn(collection, "deleteOne").mockImplementation(async (filter) => {
+      const index = data[name].findIndex((row) => matches(row, filter));
+      if (index !== -1) data[name].splice(index, 1);
+      return { acknowledged: true, deletedCount: index === -1 ? 0 : 1 };
+    });
+    vi.spyOn(collection, "findOneAndUpdate").mockImplementation(async (filter, update) => {
+      const row = data[name].find((row) => matches(row, filter));
+      if (row && "$set" in update) Object.assign(row, update.$set);
+      return row ?? null;
+    });
+  }
+  vi.spyOn(db, "collection").mockImplementation((name) => {
+    const collection = collections.get(name);
+    if (!collection) throw new Error(`Unexpected collection: ${name}`);
+    return collection;
+  });
+  vi.mocked(getDb).mockResolvedValue(db);
+  const app = express();
+  app.use(express.json());
+  app.use((req, res, next) => { res.locals.user = { id: req.headers["x-user"] === owner ? owner : other }; next(); });
+  app.use("/api/task-ledgers", ledgersRouter);
+  app.use("/api/validation-values", validationRouter);
+  app.use("/api", crudRouter);
+  app.use("/api/machines", machinesRouter);
+  app.use("/api/dashboard", dashboardRouter);
+  app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => res.status(500).json({ error: error.message }));
+  server = app.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Missing test server address");
+  baseUrl = `http://127.0.0.1:${address.port}/api`;
+});
+
+afterEach(async () => {
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  vi.restoreAllMocks();
+});
+
+function request(route: string, user = other, method = "GET", body?: unknown) {
+  return fetch(`${baseUrl}/${route}`, {
+    method, headers: { "Content-Type": "application/json", "x-user": user },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+}
+
+describe("user-owned API data", () => {
+  it.each(["machines", "rules", "taskDefinitions", "completions", "task-ledgers", "dashboard"])("isolates %s lists", async (route) => {
+    expect(await (await request(route)).json()).toEqual([]);
+    expect((await (await request(route, owner)).json()).length).toBe(1);
+  });
+
+  it.each([
+    ["machines", machineId, { code: "CAR", type: "Car" }],
+    ["rules", ruleId, { name: "Changed", kind: "special" }],
+    ["taskDefinitions", taskId, { machineId: machineId.toHexString(), ruleId: ruleId.toHexString(), name: "Changed" }],
+    ["completions", completionId, { taskDefinitionId: taskId.toHexString(), completedAt: "2026-01-01" }]
+  ])("rejects another user's updates and deletes to %s", async (route, id, body) => {
+    const original = JSON.stringify(data[route]);
+    expect((await request(`${route}/${id}`, other, "PUT", body)).status).toBe(404);
+    expect((await request(`${route}/${id}`, other, "DELETE")).status).toBe(404);
+    expect(JSON.stringify(data[route])).toBe(original);
+    expect((await request(`${route}/${id}`, owner, "PUT", body)).status).toBe(200);
+    expect((await request(`${route}/${id}`, owner, "DELETE")).status).toBe(204);
+  });
+
+  it("assigns ownership server-side and strips submitted database fields", async () => {
+    const response = await request("machines", other, "POST", { code: "NEW", type: "Car", userId: owner, _id: machineId });
+    expect(response.status).toBe(201);
+    const created = data.machines[1];
+    expect(created.userId).toBe(other);
+    expect(created._id).not.toEqual(machineId);
+    expect((await (await request("machines")).json()).length).toBe(1);
+  });
+
+  it("does not let an update transfer ownership", async () => {
+    expect((await request(`machines/${machineId}`, owner, "PUT", { code: "CAR", type: "Car", userId: other })).status).toBe(200);
+    expect(data.machines[0].userId).toBe(owner);
+  });
+
+  it.each([
+    ["rules", { name: "New rule", kind: "special" }],
+    ["taskDefinitions", { machineId: machineId.toHexString(), ruleId: ruleId.toHexString(), name: "New task" }],
+    ["completions", { taskDefinitionId: taskId.toHexString(), completedAt: "2026-01-02" }]
+  ])("supports owned %s creation without trusting submitted userId", async (route, body) => {
+    expect((await request(route, owner, "POST", { ...body, userId: other })).status).toBe(201);
+    expect(data[route][1].userId).toBe(owner);
+    expect(await (await request(route)).json()).toEqual([]);
+  });
+
+  it("rejects task and completion references to another user's records", async () => {
+    expect((await request("taskDefinitions", other, "POST", { machineId: machineId.toHexString(), ruleId: ruleId.toHexString(), name: "Foreign" })).status).toBe(404);
+    expect((await request("completions", other, "POST", { taskDefinitionId: taskId.toHexString(), completedAt: "2026-01-01" })).status).toBe(404);
+    data.machines[0].userId = other;
+    expect((await request("taskDefinitions", other, "POST", { machineId: machineId.toHexString(), ruleId: ruleId.toHexString(), name: "Foreign rule" })).status).toBe(404);
+  });
+
+  it("scopes odometer and ledger writes to the machine owner", async () => {
+    expect((await request(`machines/${machineId}/odometer`, other, "PATCH", { currentOdometer: 10 })).status).toBe(404);
+    expect(data.machines[0].currentOdometer).toBeUndefined();
+    expect((await request(`machines/${machineId}/odometer`, owner, "PATCH", { currentOdometer: 10 })).status).toBe(200);
+    expect(data.machines[0].currentOdometer).toBe(10);
+    expect((await request(`task-ledgers/${machineId}`, other, "PUT", { sections: [] })).status).toBe(404);
+    expect((await request(`task-ledgers/${machineId}`, owner, "PUT", { sections: [] })).status).toBe(200);
+  });
+
+  it("hides old foreign-machine ledgers and unowned legacy data", async () => {
+    data.taskLedgers.push({ _id: new ObjectId(), userId: other, machineId: machineId.toHexString(), sections: [] });
+    data.machines.push({ _id: new ObjectId(), code: "LEGACY", type: "Car" });
+    expect(await (await request("task-ledgers")).json()).toEqual([]);
+    expect(await (await request("machines")).json()).toEqual([]);
+    expect((await (await request("machines", owner)).json()).length).toBe(1);
+  });
+
+  it("shares core values but isolates custom values and duplicate checks", async () => {
+    expect((await (await request("validation-values")).json()).map((row: Document) => row.value)).toEqual(["Car"]);
+    expect((await request(`validation-values/${customId}`, other, "DELETE")).status).toBe(404);
+    expect((await request(`validation-values/${coreId}`, other, "DELETE")).status).toBe(403);
+    expect((await request("validation-values", other, "POST", { category: "type", value: "Car" })).status).toBe(409);
+    expect((await request("validation-values", other, "POST", { category: "make", value: "Custom", userId: owner, core: true })).status).toBe(201);
+    expect(data.validationValues[2].userId).toBe(other);
+    expect(data.validationValues[2].core).toBe(false);
+    expect((await request("validation-values", other, "POST", { category: "make", value: "Custom" })).status).toBe(409);
+    expect((await request(`validation-values/${customId}`, owner, "DELETE")).status).toBe(204);
+  });
+});
+
+describe("legacy ownership migration preflight", () => {
+  it("claims legacy records with string user IDs and can be safely rerun", async () => {
+    for (const name of ["machines", "rules", "taskDefinitions", "completions", "taskLedgers", "validationValues"]) {
+      delete data[name][0].userId;
+    }
+    data.machines.push({ _id: new ObjectId(), userId: other, code: "OTHER", type: "Car" });
+    const originalUsers = JSON.stringify(data.users);
+    const client = new MongoClient("mongodb://localhost:27017/ownership-test");
+    const session = client.startSession();
+    try {
+      await claimOwnership(await getDb(), owner, "owner@example.test", session);
+      for (const name of ["machines", "rules", "taskDefinitions", "completions", "taskLedgers", "validationValues"]) {
+        expect(data[name][0].userId).toBe(owner);
+      }
+      expect(data.machines[1].userId).toBe(other);
+      expect(data.validationValues[1].userId).toBeUndefined();
+      expect(JSON.stringify(data.users)).toBe(originalUsers);
+      const migrated = JSON.stringify(data);
+      await claimOwnership(await getDb(), owner, "owner@example.test", session);
+      expect(JSON.stringify(data)).toBe(migrated);
+      expect(await (await request("machines")).json()).toHaveLength(1);
+      expect(await (await request("machines", owner)).json()).toHaveLength(1);
+      expect((await planOwnership(await getDb(), owner, "owner@example.test")).every(({ count }) => count === 0)).toBe(true);
+    } finally {
+      await session.endSession();
+      await client.close();
+    }
+  });
+
+  it("only plans unowned records, leaving existing owners and core values alone", async () => {
+    for (const name of ["machines", "rules", "taskDefinitions", "completions", "taskLedgers", "validationValues"]) {
+      delete data[name][0].userId;
+    }
+    data.machines.push({ _id: new ObjectId(), userId: other });
+    const before = JSON.stringify(data);
+    const plan = await planOwnership(await getDb(), owner, "owner@example.test");
+    expect(plan.map(({ count }) => count)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(JSON.stringify(data)).toBe(before);
+  });
+
+  it("is a no-op when all non-core data is already owned", async () => {
+    expect((await planOwnership(await getDb(), owner, "owner@example.test")).every(({ count }) => count === 0)).toBe(true);
+  });
+
+  it("requires the exact owner ID/email pair in the selected database", async () => {
+    await expect(planOwnership(await getDb(), owner, "other@example.test")).rejects.toThrow("do not match");
+    await expect(planOwnership(await getDb(), "invalid", "owner@example.test")).rejects.toThrow("ObjectId");
+  });
+
+  it("stops for foreign-owned, duplicate or orphan ledgers without changing data", async () => {
+    data.taskLedgers[0].userId = other;
+    await expect(planOwnership(await getDb(), owner, "owner@example.test")).rejects.toThrow("different user");
+    data.taskLedgers[0].userId = owner;
+    data.taskLedgers.push({ ...data.taskLedgers[0], _id: new ObjectId(), userId: null });
+    await expect(planOwnership(await getDb(), owner, "owner@example.test")).rejects.toThrow("Multiple ledgers");
+    data.taskLedgers.pop();
+    data.taskLedgers[0].machineId = new ObjectId().toHexString();
+    await expect(planOwnership(await getDb(), owner, "owner@example.test")).rejects.toThrow("no matching machine");
+  });
+
+  it("does not start ownership writes if preflight finds conflicting ledgers", async () => {
+    delete data.machines[0].userId;
+    data.taskLedgers[0].userId = other;
+    const before = JSON.stringify(data);
+    const db = await getDb();
+    const client = new MongoClient("mongodb://localhost:27017/ownership-test");
+    const session = client.startSession();
+    try {
+      await expect(claimOwnership(db, owner, "owner@example.test", session)).rejects.toThrow("different user");
+      expect(JSON.stringify(data)).toBe(before);
+      for (const name of Object.keys(data)) expect(db.collection(name).updateMany).not.toHaveBeenCalled();
+    } finally {
+      await session.endSession();
+      await client.close();
+    }
+  });
+});

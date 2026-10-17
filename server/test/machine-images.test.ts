@@ -38,6 +38,7 @@ describe("machine image validation", () => {
 
 describe("machine image persistence", () => {
   const id = new ObjectId();
+  const userId = new ObjectId().toHexString();
   const database = new MongoClient("mongodb://localhost:27017/maintenance-test").db();
   const collection = database.collection("machines");
   vi.spyOn(database, "collection").mockReturnValue(collection);
@@ -53,6 +54,7 @@ describe("machine image persistence", () => {
     updateOne.mockResolvedValue({ acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedCount: 0, upsertedId: null });
     const app = express();
     app.use(express.json({ limit: "8mb" }));
+    app.use((_req, res, next) => { res.locals.user = { id: userId }; next(); });
     app.use("/api", crudRouter);
     app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       res.status(error instanceof ZodError ? 400 : 500).json({ error: error.message });
@@ -81,25 +83,26 @@ describe("machine image persistence", () => {
     const largeImage = `data:image/png;base64,${Buffer.alloc(150_000).toString("base64")}`;
     const response = await save("POST", { imageData: largeImage });
     expect(response.status).toBe(201);
-    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ imageData: largeImage }));
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ imageData: largeImage, userId }));
     expect((await response.json()).imageData).toBe(largeImage);
     find.mockReturnValue({ toArray: async () => [{ _id: id, code: "CAR", type: "Car", imageData: largeImage }] } as ReturnType<typeof collection.find>);
     expect((await (await fetch(baseUrl)).json())[0].imageData).toBe(largeImage);
+    expect(find).toHaveBeenCalledWith({ userId });
   });
 
   it("replaces an image and clears the legacy URL", async () => {
     expect((await save("PUT", { imageData: image, imageUrl: "" })).status).toBe(200);
-    expect(updateOne).toHaveBeenCalledWith({ _id: id }, { $set: expect.objectContaining({ imageData: image, imageUrl: "" }) });
+    expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, { $set: expect.objectContaining({ imageData: image, imageUrl: "" }) });
   });
 
   it("keeps the stored image unchanged when no image fields are submitted", async () => {
     expect((await save("PUT", { name: "Updated" })).status).toBe(200);
-    expect(updateOne).toHaveBeenCalledWith({ _id: id }, { $set: { code: "CAR", type: "Car", name: "Updated", status: "" } });
+    expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, { $set: { code: "CAR", type: "Car", name: "Updated", status: "" } });
   });
 
   it("removes both uploaded and legacy images explicitly", async () => {
     expect((await save("PUT", { imageData: "", imageUrl: "" })).status).toBe(200);
-    expect(updateOne).toHaveBeenCalledWith({ _id: id }, { $set: expect.objectContaining({ imageData: "", imageUrl: "" }) });
+    expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, { $set: expect.objectContaining({ imageData: "", imageUrl: "" }) });
   });
 
   it("rejects invalid images before writing to MongoDB", async () => {

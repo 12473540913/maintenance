@@ -9,9 +9,10 @@ export const dashboardRouter = Router();
 dashboardRouter.get("/", async (_req, res, next) => {
   try {
     const db = await getDb();
+    const userId: string = res.locals.user.id;
     const [machines, rules, tasks, completions] = await Promise.all([
-      db.collection("machines").find({ status: "Active" }).toArray(), db.collection("rules").find().toArray(),
-      db.collection("taskDefinitions").find().toArray(), db.collection("completions").find().toArray()
+      db.collection("machines").find({ userId, status: "Active" }).toArray(), db.collection("rules").find({ userId }).toArray(),
+      db.collection("taskDefinitions").find({ userId }).toArray(), db.collection("completions").find({ userId }).toArray()
     ]);
     const output = tasks.map((rawTask) => {
       const task = serialize(rawTask) as unknown as TaskDefinition;

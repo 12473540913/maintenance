@@ -7,7 +7,10 @@ export const ledgersRouter = Router();
 
 ledgersRouter.get("/", async (_req, res, next) => {
   try {
-    const rows = await (await getDb()).collection("taskLedgers").find({ userId: res.locals.user.id }).toArray();
+    const db = await getDb();
+    const userId: string = res.locals.user.id;
+    const machineIds = (await db.collection("machines").distinct("_id", { userId })).map((id) => id.toString());
+    const rows = await db.collection("taskLedgers").find({ userId, machineId: { $in: machineIds } }).toArray();
     res.json(rows.map(({ machineId, sections }) => ({ machineId, sections })));
   } catch (error) { next(error); }
 });
@@ -16,7 +19,7 @@ ledgersRouter.put("/:machineId", async (req, res, next) => {
   try {
     const ledger = TaskLedgerSchema.parse({ ...req.body, machineId: req.params.machineId });
     const db = await getDb();
-    if (!await db.collection("machines").findOne({ _id: oid(ledger.machineId) })) {
+    if (!await db.collection("machines").findOne({ _id: oid(ledger.machineId), userId: res.locals.user.id })) {
       res.status(404).json({ error: "Item not found." });
       return;
     }
