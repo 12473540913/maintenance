@@ -97,6 +97,7 @@ footer { text-align: center; padding: 22px; font-size: 11px; color: var(--muted)
 .timeline-value { color: var(--muted); margin-top: 2px; }
 .timeline-entry > .timeline-value:first-child { margin-top: 0; }
 .timeline-label { margin-top: 6px; }
+.timeline-note { margin-top: 4px; }
 .timeline-entries > .text-button { white-space: nowrap; }
 .ledger-fields input, .ledger-fields select { border: 1px solid var(--line); padding: 8px 9px; min-width: 70px; width: 100%; font-size: 12px; background: var(--surface); border-radius: 3px; color: var(--ink); }
 .ledger-fields input:focus, .ledger-fields select:focus { outline: none; border-color: var(--metal-dark); }

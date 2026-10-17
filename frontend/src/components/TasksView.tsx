@@ -92,7 +92,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
               return <div className={`timeline-entry${color ? ` timeline-status-${color}` : ""}`} key={entry.id}>
               <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
               <div className="timeline-label">{editing
-                ? <><select aria-label="Timeline status" value={color ?? ""} onChange={(event) => {
+                ? <select aria-label="Timeline status" value={color ?? ""} onChange={(event) => {
                   const nextColor = event.target.value as TimelineColor | "";
                   changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? {
                     ...cell,
@@ -106,8 +106,8 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
                   <option value="orange">Orange - Upcoming</option>
                   <option value="blue">Blue - Future</option>
                 </select>
-                {color === "green" && field("Timeline note", label, (nextLabel) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label: nextLabel } : cell) })))}</>
                 : color === "green" ? label || <span className="not-set">—</span> : null}</div>
+              {editing && color === "green" && <div className="timeline-note">{field("Timeline note", label, (nextLabel) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label: nextLabel } : cell) })))}</div>}
               {editing && <button className="text-button danger" aria-label="Remove timeline entry" onClick={() => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.filter((cell) => cell.id !== entry.id) }))}>Remove</button>}
             </div>;
             })}
