@@ -155,6 +155,7 @@ export function MachineDialog({ machine, onClose, onSaved }: {
                   {!imageFile && hasImage && <span className="image-picker-filename">Image attached</span>}
                 </span>
               </div>
+              {imageSource && <button type="button" className="text-button image-edit-button" disabled={imageLoading} onClick={() => setCropDraft({ source: imageSource, crop: imageCrop })}>Edit image</button>}
               {hasImage && <button type="button" className="image-picker-remove" aria-label="Remove image" title="Remove image" onClick={() => {
                 imageReadVersion.current += 1;
                 setImageLoading(false);
@@ -166,7 +167,6 @@ export function MachineDialog({ machine, onClose, onSaved }: {
               }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>}
             </div>
             {imageLoading && <p role="status">Reading image...</p>}
-            {imageSource && <button type="button" className="text-button image-edit-button" disabled={imageLoading} onClick={() => setCropDraft({ source: imageSource, crop: imageCrop })}>Edit image</button>}
           </div>}
         </Fragment>)}
       </fieldset>
