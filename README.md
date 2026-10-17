@@ -74,6 +74,8 @@ Maintenance uses the shared auth-service the same way finances does: auth-servic
 
 Signed-in password changes call `PATCH /auth/account/password` with `{ currentPassword, password }`. Deploy an auth-service version that verifies the current password before updating it. The browser accepts the replacement HttpOnly session cookie via credentialed requests.
 
+If a signup verification code expires, submit **Sign up** again with the original email and a valid password. Auth-service sends a fresh code for an existing unverified account, and the app opens the verification screen. The existing password and account are preserved; verified accounts still receive **Email already in use**. Sign-in continues to require email verification and never requests a code. The verification screen also offers **Resend code** and displays request failures and resend confirmations. Deploy the auth-service signup-retry change along with this frontend.
+
 The API verifies the JWT from `AUTH_COOKIE_NAME` with audience `maintenance` and issuer `auth-service`, then checks the signed user id and `authVersion` against the local `users` collection. `/api/health` stays public for health checks, while all other `/api` routes require a valid maintenance user session cookie.
 
 The API uses the database named in `MONGODB_URI` unless `MONGODB_DB` explicitly overrides it. Keep that effective database identical to auth-service's `ATLAS_URI_MAINTENANCE`; otherwise sign-in can succeed while API requests return `Unauthorized` because the API cannot find the signed-in user. Database or server configuration failures are reported as server errors, not invalid sessions.

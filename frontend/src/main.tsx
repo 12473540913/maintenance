@@ -56,12 +56,15 @@ function App() {
     if (dirty && !window.confirm("Discard unsaved task changes?")) return;
     setDirty(false); setView(next);
   };
-  if (!authReady) return <AuthLayout><div className="loading" role="status">Loading...</div></AuthLayout>;
+  if (!authReady) return <AuthLayout onHome={() => setView("shop")}><div className="loading" role="status">Loading...</div></AuthLayout>;
   if (!session) return <LoginView />;
   return <div className="app-shell">
-    <header className="topbar"><nav className="tabs" aria-label="Main navigation">
+    <header className="topbar">
+      <button className="app-brand" type="button" onClick={() => navigate("shop")}>maintenance</button>
+      <nav className="tabs" aria-label="Main navigation">
       {([["tasks", "Tasks"], ["shop", "Shop"], ["profile", "Profile"]] as const).map(([key, label]) => <button className={view === key ? "tab active" : "tab"} aria-current={view === key ? "page" : undefined} onClick={() => navigate(key)} key={key}>{label}</button>)}
-    </nav></header>
+      </nav>
+    </header>
     <div className="site-content">
       {error && <div className="alert" role="alert">{error} <button className="text-button" onClick={() => setLoadAttempt(loadAttempt + 1)}>Retry</button></div>}
       {!loaded && !error && view !== "profile" && <p className="loading" role="status">Loading your shop...</p>}
@@ -83,11 +86,11 @@ function LoginView() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const title = mode === "sign-up" ? "Create account" : mode === "verify" ? "Verify account" : mode === "forgot" ? "Forgot password" : mode === "reset" ? "Reset password" : "Sign In";
-  const description = mode === "verify" ? "Enter the verification code sent to your email." : mode === "reset" ? "Enter the reset code and choose a new password." : "";
+  const description = mode === "verify" ? `Enter the verification code sent to ${email.trim()}.` : mode === "reset" ? "Enter the reset code and choose a new password." : "";
   const submitLabel = loading ? "Working..." : mode === "sign-up" ? "Sign up" : mode === "verify" ? "Verify account" : mode === "forgot" ? "Send reset code" : mode === "reset" ? "Reset password" : "Sign In";
   const clearFeedback = () => { setError(""); setMessage(""); };
   const goTo = (nextMode: AuthMode) => { clearFeedback(); setShowPassword(false); setMode(nextMode); if (nextMode !== "verify" && nextMode !== "reset") setCode(""); };
-  return <AuthLayout><form className="login-panel" onSubmit={async (event) => {
+  return <AuthLayout onHome={() => goTo("sign-in")}><form className="login-panel" onSubmit={async (event) => {
     event.preventDefault(); setLoading(true); clearFeedback();
     const trimmedEmail = email.trim();
     try {
@@ -102,15 +105,18 @@ function LoginView() {
     <h1>maintenance</h1><h2 className="auth-title">{title}</h2>
     {description && <p className="auth-description">{description}</p>}
     {message && <div className="notice" role="status">{message}</div>}
-    <div className="auth-field">
+    {mode !== "verify" && <div className="auth-field">
       <label htmlFor="auth-email">email</label>
       <div className="auth-input">
         <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>
         <input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
       </div>
-    </div>
-    {(mode === "verify" || mode === "reset") && <label>Code<input value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" required /></label>}
-    {mode !== "forgot" && mode !== "verify" && <div className="auth-field">
+    </div>}
+    {(mode === "verify" || mode === "reset") && <div className={mode === "verify" ? "auth-field verification-code-field" : "auth-field"}>
+      <label htmlFor="auth-code">Code</label>
+      <input id="auth-code" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" required />
+    </div>}
+    {(mode === "sign-in" || mode === "sign-up" || mode === "reset") && <div className="auth-field">
       <label htmlFor="auth-password">password</label>
       <div className="auth-input auth-password">
         <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /><circle cx="12" cy="15" r="1" /></svg>
@@ -123,11 +129,11 @@ function LoginView() {
     {error && <div className="alert" role="alert">{error}</div>}
     <button className="button primary" type="submit" disabled={loading}>{submitLabel}</button>
     <div className="auth-links">
-      {mode !== "sign-in" && <button type="button" className="text-button" onClick={() => goTo("sign-in")}>Back to sign in</button>}
+      {mode !== "sign-in" && mode !== "verify" && <button type="button" className="text-button" onClick={() => goTo("sign-in")}>Back to sign in</button>}
       {mode === "sign-in" && <><p>Don&apos;t have an account? <button type="button" className="text-button" onClick={() => goTo("sign-up")}>Sign up here.</button></p><button type="button" className="text-button" onClick={() => goTo("forgot")}>Forgot your password?</button></>}
       {mode === "verify" && <button type="button" className="text-button" disabled={loading} onClick={async () => {
         setLoading(true); clearFeedback();
-        try { await authClient.resendSignUpCode(email.trim()); setMessage("A new verification code was sent."); }
+        try { await authClient.resendSignUpCode(email.trim()); setCode(""); setMessage("A new verification code was sent."); }
         catch (reason) { setError(reason instanceof Error ? reason.message : "Could not resend code."); }
         finally { setLoading(false); }
       }}>Resend code</button>}
