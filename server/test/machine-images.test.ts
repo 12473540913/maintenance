@@ -95,6 +95,32 @@ describe("machine image persistence", () => {
     expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, { $set: expect.objectContaining({ imageData: image, imageUrl: "" }) });
   });
 
+  it("persists crop and zoom alongside the original image and returns them on reload", async () => {
+    const imageCrop = { x: 0.15, y: 0.85, zoom: 2.25 };
+    const response = await save("POST", { imageData: image, imageCrop });
+    expect(response.status).toBe(201);
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ imageData: image, imageCrop, userId }));
+    expect((await response.json()).imageCrop).toEqual(imageCrop);
+    find.mockReturnValue({ toArray: async () => [{ _id: id, code: "CAR", type: "Car", imageData: image, imageCrop }] } as ReturnType<typeof collection.find>);
+    const reloaded = (await (await fetch(baseUrl)).json())[0];
+    expect(reloaded.imageCrop).toEqual(imageCrop);
+    expect(reloaded.imageData).toBe(image);
+  });
+
+  it("updates framing without replacing the uploaded image or legacy URL", async () => {
+    const imageCrop = { x: 1, y: 0, zoom: 3 };
+    expect((await save("PUT", { imageCrop })).status).toBe(200);
+    expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, {
+      $set: { code: "CAR", type: "Car", status: "", imageCrop }
+    });
+  });
+
+  it.each(["POST", "PUT"] as const)("rejects invalid crop settings on %s before writing", async (method) => {
+    expect((await save(method, { imageCrop: { x: 0.5, y: 0.5, zoom: 4 } })).status).toBe(400);
+    expect(insertOne).not.toHaveBeenCalled();
+    expect(updateOne).not.toHaveBeenCalled();
+  });
+
   it("keeps the stored image unchanged when no image fields are submitted", async () => {
     expect((await save("PUT", { name: "Updated" })).status).toBe(200);
     expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, { $set: { code: "CAR", type: "Car", name: "Updated", status: "" } });

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { Machine } from "@maintenance/shared";
 import { MachineDialog } from "./MachineDialog";
+import { imageCropStyle } from "../lib/imageCrop";
 
 export function itemName(machine: Machine): string { return machine.name || machine.code; }
 
@@ -8,7 +9,7 @@ function ItemImage({ machine }: { machine: Machine }) {
   const [failed, setFailed] = useState(false);
   const source = machine.imageData || (machine.imageUrl && /^https?:\/\//i.test(machine.imageUrl) ? machine.imageUrl : undefined);
   return source && !failed
-    ? <img src={source} alt={itemName(machine)} draggable={false} onError={() => setFailed(true)} />
+    ? <div className="item-image-frame"><img src={source} alt={itemName(machine)} style={imageCropStyle(machine.imageCrop)} draggable={false} onError={() => setFailed(true)} /></div>
     : <div className="item-placeholder" role="img" aria-label={failed || machine.imageUrl ? "Image unavailable" : "No image"} />;
 }
 

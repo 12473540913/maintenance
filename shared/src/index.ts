@@ -12,6 +12,13 @@ export const MachineImageSchema = z.string()
     return data.length % 4 === 0 && bytes > 0 && bytes <= MAX_IMAGE_BYTES;
   }, "Image must be nonempty and 5 MB or smaller.");
 
+export const ImageCropSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  zoom: z.number().min(1).max(3)
+});
+export type ImageCrop = z.infer<typeof ImageCropSchema>;
+
 export const MachineSchema = z.object({
   id: z.string().optional(),
   code: z.string(),
@@ -21,6 +28,7 @@ export const MachineSchema = z.object({
   archived: z.boolean().optional(),
   imageUrl: z.string().optional(),
   imageData: z.union([MachineImageSchema, z.literal("")]).optional(),
+  imageCrop: ImageCropSchema.optional(),
   year: z.union([z.string(), z.number().int().min(1800).max(3000)]).optional(),
   make: z.string().optional(),
   model: z.string().optional(),

@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES, MachineImageSchema, type Machine } from "@maintenance/shared";
+import { IMAGE_TYPES, MAX_IMAGE_BYTES, MachineImageSchema, type ImageCrop, type Machine } from "@maintenance/shared";
 import { api } from "../lib/api";
+import { ImageCropDialog } from "./ImageCropDialog";
+import { DEFAULT_IMAGE_CROP } from "../lib/imageCrop";
 
 const fields = [
   ["code", "ID"], ["type", "Type"], ["name", "Name"],
@@ -21,7 +23,14 @@ async function readImage(file: File): Promise<string> {
     reader.onabort = () => reject(new Error("Image reading was cancelled."));
     reader.readAsDataURL(file);
   });
-  return MachineImageSchema.parse(result);
+  const data = MachineImageSchema.parse(result);
+  await new Promise<void>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Could not load image. Please choose another file."));
+    image.src = data;
+  });
+  return data;
 }
 
 export function MachineDialog({ machine, onClose, onSaved }: {
@@ -35,10 +44,19 @@ export function MachineDialog({ machine, onClose, onSaved }: {
   const [itemAction, setItemAction] = useState<"archive" | "delete" | null>(null);
   const [error, setError] = useState("");
   const [imageFile, setImageFile] = useState<File>();
+  const [imageData, setImageData] = useState<string>();
+  const [imageCrop, setImageCrop] = useState(machine?.imageCrop ?? DEFAULT_IMAGE_CROP);
+  const [cropDraft, setCropDraft] = useState<{ source: string; crop: ImageCrop; file?: File; data?: string } | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const imageReadVersion = useRef(0);
   const [removeImage, setRemoveImage] = useState(false);
   const hasImage = Boolean(imageFile || (!removeImage && (machine?.imageData || machine?.imageUrl)));
+  const imageSource = imageData || (!removeImage && (machine?.imageData || (machine?.imageUrl && /^https?:\/\//i.test(machine.imageUrl) ? machine.imageUrl : undefined)));
   const imageInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { dialog.current?.showModal(); }, []);
+  useEffect(() => {
+    dialog.current?.showModal();
+    return () => { imageReadVersion.current += 1; };
+  }, []);
 
   const archiveMachine = async () => {
     if (!machine?.id) return;
@@ -81,17 +99,19 @@ export function MachineDialog({ machine, onClose, onSaved }: {
   }}>
     <form onSubmit={async (event) => {
       event.preventDefault();
+      if (imageLoading || cropDraft) return;
       setSaving(true);
       setError("");
       try {
         const payload: Omit<Machine, "id"> = { ...values, code: values.code.trim(), type: values.type.trim(), status: values.status };
-        if (imageFile) {
-          payload.imageData = await readImage(imageFile);
+        if (imageData) {
+          payload.imageData = imageData;
           payload.imageUrl = "";
         } else if (removeImage) {
           payload.imageData = "";
           payload.imageUrl = "";
         }
+        if (hasImage || removeImage) payload.imageCrop = removeImage ? { ...DEFAULT_IMAGE_CROP } : imageCrop;
         if (machine?.id) await api.updateMachine(machine.id, payload);
         else await api.createMachine(payload);
         await onSaved();
@@ -109,9 +129,24 @@ export function MachineDialog({ machine, onClose, onSaved }: {
             <label htmlFor="item-image">Image</label>
             <div className="image-picker">
               <div className="image-picker-select">
-                <input id="item-image" ref={imageInput} type="file" accept={IMAGE_TYPES.join(",")} onChange={(event) => {
-                  setImageFile(event.target.files?.[0]);
+                <input id="item-image" ref={imageInput} type="file" accept={IMAGE_TYPES.join(",")} onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  event.currentTarget.value = "";
+                  if (!file) return;
+                  const version = ++imageReadVersion.current;
+                  setImageLoading(true);
                   setError("");
+                  try {
+                    const data = await readImage(file);
+                    if (version !== imageReadVersion.current) return;
+                    setCropDraft({ source: data, crop: { ...DEFAULT_IMAGE_CROP }, file, data });
+                  } catch (reason) {
+                    if (version !== imageReadVersion.current) return;
+                    setError(reason instanceof Error ? reason.message : "Could not read image.");
+                    if (imageInput.current) imageInput.current.value = "";
+                  } finally {
+                    if (version === imageReadVersion.current) setImageLoading(false);
+                  }
                 }} />
                 <span className="image-picker-content" aria-hidden="true">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
@@ -121,11 +156,17 @@ export function MachineDialog({ machine, onClose, onSaved }: {
                 </span>
               </div>
               {hasImage && <button type="button" className="image-picker-remove" aria-label="Remove image" title="Remove image" onClick={() => {
+                imageReadVersion.current += 1;
+                setImageLoading(false);
                 setImageFile(undefined);
+                setImageData(undefined);
+                setImageCrop({ ...DEFAULT_IMAGE_CROP });
                 setRemoveImage(true);
                 if (imageInput.current) imageInput.current.value = "";
               }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>}
             </div>
+            {imageLoading && <p role="status">Reading image...</p>}
+            {imageSource && <button type="button" className="text-button image-edit-button" disabled={imageLoading} onClick={() => setCropDraft({ source: imageSource, crop: imageCrop })}>Edit image</button>}
           </div>}
         </Fragment>)}
       </fieldset>
@@ -136,9 +177,18 @@ export function MachineDialog({ machine, onClose, onSaved }: {
         </div>}
         <div className="item-save-actions">
           <button type="button" className="button subtle" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="button primary" disabled={saving}>{saving ? "Saving..." : "Save item"}</button>
+          <button className="button primary" disabled={saving || imageLoading}>{saving ? "Saving..." : "Save item"}</button>
         </div>
       </div>
     </form>
+    {cropDraft && <ImageCropDialog source={cropDraft.source} crop={cropDraft.crop} onCancel={() => setCropDraft(null)} onSubmit={(crop) => {
+      setImageCrop(crop);
+      if (cropDraft.file && cropDraft.data) {
+        setImageFile(cropDraft.file);
+        setImageData(cropDraft.data);
+        setRemoveImage(false);
+      }
+      setCropDraft(null);
+    }} />}
   </dialog>;
 }
