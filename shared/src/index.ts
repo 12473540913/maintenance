@@ -51,17 +51,42 @@ export const LedgerRowSchema = z.object({
   }))
 });
 
+export const AnnualInspectionTaskSchema = z.object({
+  id: z.string().min(1),
+  description: z.string(),
+  // Legacy instance fields from before instances were stored separately.
+  clientNotes: z.string().optional(),
+  inspectionNotes: z.string().optional(),
+  checked: z.boolean().optional()
+});
+
+export const AnnualInspectionInstanceTaskSchema = z.object({
+  taskId: z.string().min(1),
+  clientNotes: z.string(),
+  inspectionNotes: z.string(),
+  checked: z.boolean()
+});
+
+export const AnnualInspectionInstanceSchema = z.object({
+  tasks: z.array(AnnualInspectionInstanceTaskSchema)
+});
+
 export const TaskLedgerSchema = z.object({
   machineId: z.string().min(1),
   sections: z.array(z.object({
     id: z.string().min(1),
     name: z.string(),
     rows: z.array(LedgerRowSchema)
-  }))
+  })),
+  annualInspectionTasks: z.array(AnnualInspectionTaskSchema).optional(),
+  annualInspectionInstance: AnnualInspectionInstanceSchema.optional()
 });
 
 export const ProfileSchema = z.object({ username: z.string().trim().min(3).max(100) });
 export type TaskLedger = z.infer<typeof TaskLedgerSchema>;
+export type AnnualInspectionTask = z.infer<typeof AnnualInspectionTaskSchema>;
+export type AnnualInspectionInstance = z.infer<typeof AnnualInspectionInstanceSchema>;
+export type AnnualInspectionInstanceTask = z.infer<typeof AnnualInspectionInstanceTaskSchema>;
 export type LedgerSection = TaskLedger["sections"][number];
 export type LedgerRow = z.infer<typeof LedgerRowSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;

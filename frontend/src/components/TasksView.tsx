@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
 import { initialLedger, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
+import { AnnualInspectionDialog } from "./AnnualInspectionDialog";
 import { itemName } from "./ShopView";
 
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
@@ -48,6 +49,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [annualInspectionOpen, setAnnualInspectionOpen] = useState(false);
   const odometer = machine.currentOdometer;
   const odometerValue = typeof odometer === "number"
     ? `${odometer.toLocaleString("en-US")} mi`
@@ -64,12 +66,14 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />
     : value || <span className="not-set">—</span>;
   return <section className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
-    <div className="ledger-heading"><div><h3>{itemName(machine)}</h3></div>
+    <div className="ledger-heading">
+      <button type="button" className="button subtle annual-inspection-trigger" onClick={() => setAnnualInspectionOpen(true)}>Annual Inspection</button>
+      <div className="ledger-heading-title"><h3>{itemName(machine)}</h3></div>
       <div className="ledger-heading-meta">
         <p className="ledger-odometer"><strong>{odometerValue}</strong></p>
         {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
         setSaving(true); setError("");
-        try { const saved = await api.saveLedger(draft); onSaved(saved); setDirty(false); onDirty(false); }
+        try { const saved = await api.saveLedger({ ...draft, annualInspectionTasks: ledger.annualInspectionTasks, annualInspectionInstance: ledger.annualInspectionInstance }); onSaved(saved); setDirty(false); onDirty(false); }
         catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save tasks."); }
         finally { setSaving(false); }
       }}>{saving ? "Saving..." : "Save changes"}</button></div>}
@@ -128,5 +132,6 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
       {!draft.sections.length && <p className="section-empty">{editing ? "Add a section to begin organizing tasks." : "No sections yet. Use Edit to create your own."}</p>}
       {editing && <button className="button subtle add-section" onClick={() => change({ ...draft, sections: [...draft.sections, { id: crypto.randomUUID(), name: "", rows: [] }] })}>+ Add section</button>}
     </fieldset>
+    {annualInspectionOpen && <AnnualInspectionDialog machine={machine} ledger={ledger} onClose={() => setAnnualInspectionOpen(false)} onSaved={onSaved} />}
   </section>;
 }
