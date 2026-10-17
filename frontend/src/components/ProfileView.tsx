@@ -1,9 +1,16 @@
 import { useState } from "react";
+import type { ShopSetting } from "@maintenance/shared";
 import { authClient, type AppAuthSession } from "../lib/authClient";
+import { api } from "../lib/api";
 
-const sections = [["identity", "Identity"], ["update", "Update Profile"], ["about", "About"]] as const;
+const sections = [["identity", "Identity"], ["controls", "Controls"], ["session", "Session"], ["about", "About"]] as const;
 
-export function ProfileView({ session }: { session: AppAuthSession }) {
+export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
+  session: AppAuthSession;
+  shops: ShopSetting[];
+  shopsReady: boolean;
+  onShopsChange: (shops: ShopSetting[]) => void;
+}) {
   const [section, setSection] = useState<typeof sections[number][0]>("identity");
   const [passwordFormOpen, setPasswordFormOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -12,11 +19,20 @@ export function ProfileView({ session }: { session: AppAuthSession }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [savingShops, setSavingShops] = useState(false);
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError(""); setMessage("");
     try { await action(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Account request failed."); }
     finally { setBusy(false); }
+  };
+  const saveShops = async (nextShops: ShopSetting[]) => {
+    setSavingShops(true);
+    setError("");
+    setMessage("");
+    try { onShopsChange(await api.saveShops(nextShops)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save shop controls."); }
+    finally { setSavingShops(false); }
   };
   return <main className="profile-page">
     <div className="profile-layout">
@@ -25,7 +41,32 @@ export function ProfileView({ session }: { session: AppAuthSession }) {
         {error && <div className="alert" role="alert">{error}</div>}
         {message && <div className="notice" role="status">{message}</div>}
         {section === "identity" && <section><dl className="identity-list"><div><dt>Email</dt><dd>{session.email}</dd></div><div><dt>Email verified</dt><dd>{session.emailVerified ? "Yes" : "No"}</dd></div></dl></section>}
-        {section === "update" && <section>
+        {section === "controls" && <section className="shop-controls">
+          <div className="shop-controls-heading">
+            <div><h3>Controls</h3><p className="muted">Enable shops to make them available from the Shop screen.</p></div>
+            <button className="button primary shop-add-button" disabled={!shopsReady || savingShops} aria-label="Add shop" onClick={() => {
+              const nextNumber = Math.max(0, ...shops.map(({ id }) => Number(id.slice("shop-".length)))) + 1;
+              void saveShops([...shops, { id: `shop-${nextNumber}`, enabled: true }]);
+            }}>+ Add shop</button>
+          </div>
+          {!shopsReady ? <p className="muted" role="status">Loading shop controls...</p> : <div className="shop-control-list">
+            {shops.map(({ id, enabled }) => {
+              const number = Number(id.slice("shop-".length));
+              const enabledCount = shops.filter((shop) => shop.enabled).length;
+              return <div className="shop-control-row" key={id}>
+                <span>{`Shop ${number}`}</span>
+                <label className="shop-toggle">
+                  <input type="checkbox" checked={enabled} disabled={savingShops || (enabled && enabledCount === 1)} onChange={(event) => {
+                    const nextShops = shops.map((shop) => shop.id === id ? { ...shop, enabled: event.target.checked } : shop);
+                    void saveShops(nextShops);
+                  }} />
+                  <span>{enabled ? "Enabled" : "Disabled"}</span>
+                </label>
+              </div>;
+            })}
+          </div>}
+        </section>}
+        {section === "session" && <section>
           <div className="account-actions">
             <button className="button subtle" disabled={busy} onClick={() => void run(() => authClient.signOut())}>Sign Out</button>
             <button className="button subtle" disabled={busy} aria-expanded={passwordFormOpen} aria-controls="change-password-form" onClick={() => { setPasswordFormOpen(true); setError(""); setMessage(""); }}>Change Your Password</button>

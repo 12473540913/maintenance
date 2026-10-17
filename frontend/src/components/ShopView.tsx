@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Machine } from "@maintenance/shared";
+import type { Machine, ShopSetting } from "@maintenance/shared";
 import { MachineDialog } from "./MachineDialog";
 import { imageCropStyle } from "../lib/imageCrop";
 
@@ -27,10 +27,13 @@ function orderMachines(machines: Machine[]): Machine[] {
     .map(({ machine }) => machine);
 }
 
-export function ShopView({ machines, onSaved, onReorder }: {
+export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSaved, onReorder }: {
   machines: Machine[];
+  shops: ShopSetting[];
+  selectedShopId: string;
+  onSelectShop: (shopId: string) => void;
   onSaved: () => Promise<void>;
-  onReorder: (machineIds: string[]) => Promise<void>;
+  onReorder: (machineIds: string[], shopId: string) => Promise<void>;
 }) {
   const [form, setForm] = useState<Machine | "new" | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -53,7 +56,7 @@ export function ShopView({ machines, onSaved, onReorder }: {
     setSavingOrder(true);
     setOrderError("");
     try {
-      await onReorder(next.map(({ id }) => id).filter((id): id is string => Boolean(id)));
+      await onReorder(next.map(({ id }) => id).filter((id): id is string => Boolean(id)), selectedShopId);
     } catch (reason) {
       setOrderError(reason instanceof Error ? reason.message : "Could not save machine order.");
     } finally {
@@ -61,8 +64,10 @@ export function ShopView({ machines, onSaved, onReorder }: {
     }
   };
 
+  const availableShops = shops.filter((shop) => shop.enabled);
   return <main className="shop-page">
     {orderError && <div className="alert" role="alert">{orderError}</div>}
+    <div className="shop-layout">
     <div className="shop-grid">
       {orderedMachines.map((machine) => <button
         className={`shop-card${draggingId === machine.id ? " is-dragging" : ""}`}
@@ -109,6 +114,10 @@ export function ShopView({ machines, onSaved, onReorder }: {
       </button>)}
       <button className="shop-card add-card" onClick={() => setForm("new")} aria-label="Add new item"><span aria-hidden="true">+</span></button>
     </div>
-    {form && <MachineDialog machine={form === "new" ? undefined : form} onClose={() => setForm(null)} onSaved={onSaved} />}
+    {availableShops.length > 1 && <nav className="shop-switcher" aria-label="Choose shop">
+      {availableShops.map((shop) => <button key={shop.id} className={selectedShopId === shop.id ? "selected" : ""} aria-current={selectedShopId === shop.id ? "page" : undefined} onClick={() => onSelectShop(shop.id)}>{`Shop ${Number(shop.id.slice("shop-".length))}`}</button>)}
+    </nav>}
+    </div>
+    {form && <MachineDialog machine={form === "new" ? undefined : form} shopId={selectedShopId} onClose={() => setForm(null)} onSaved={onSaved} />}
   </main>;
 }

@@ -8,6 +8,7 @@ import { machinesRouter } from "../src/routes/machines.js";
 import { ledgersRouter } from "../src/routes/ledgers.js";
 import { dashboardRouter } from "../src/routes/dashboard.js";
 import { validationRouter } from "../src/routes/validation.js";
+import { shopsRouter } from "../src/routes/shops.js";
 import { claimOwnership, planOwnership } from "../src/migrate-ownership.js";
 
 vi.mock("../src/db/mongo.js", () => ({ getDb: vi.fn() }));
@@ -48,7 +49,8 @@ beforeEach(async () => {
     validationValues: [
       { _id: customId, userId: owner, category: "make", value: "Custom", core: false },
       { _id: coreId, category: "type", value: "Car", core: true }
-    ]
+    ],
+    userappsettings: []
   };
   const db = new MongoClient("mongodb://localhost:27017/ownership-test").db();
   const collections = new Map(Object.keys(data).map((name) => [name, db.collection(name)]));
@@ -122,6 +124,7 @@ beforeEach(async () => {
   app.use((req, res, next) => { res.locals.user = { id: req.headers["x-user"] === owner ? owner : other }; next(); });
   app.use("/api/task-ledgers", ledgersRouter);
   app.use("/api/validation-values", validationRouter);
+  app.use("/api/shops", shopsRouter);
   app.use("/api", crudRouter);
   app.use("/api/machines", machinesRouter);
   app.use("/api/dashboard", dashboardRouter);
@@ -226,6 +229,27 @@ describe("user-owned API data", () => {
     expect((await request("machines/reorder", owner, "POST", { machineIds })).status).toBe(200);
     expect(data.machines.find((row) => row._id === secondMachineId)?.shopOrder).toBe(0);
     expect(data.machines.find((row) => row._id === machineId)?.shopOrder).toBe(1);
+  });
+
+  it("reorders items independently within each shop", async () => {
+    const secondMachineId = new ObjectId();
+    data.machines.push({ _id: secondMachineId, userId: owner, code: "BIKE", type: "Motorcycle", shopId: "shop-2" });
+    expect((await request("machines/reorder", owner, "POST", {
+      machineIds: [secondMachineId.toHexString()],
+      shopId: "shop-2"
+    })).status).toBe(200);
+    expect(data.machines.find((row) => row._id === secondMachineId)?.shopOrder).toBe(0);
+    expect(data.machines.find((row) => row._id === machineId)?.shopOrder).toBeUndefined();
+  });
+
+  it("persists shop settings per user and supplies the default primary shop", async () => {
+    expect(await (await request("shops", owner)).json()).toEqual([{ id: "shop-1", enabled: true }]);
+    const shops = [{ id: "shop-1", enabled: true }, { id: "shop-2", enabled: false }];
+    expect((await request("shops", owner, "PUT", shops)).status).toBe(200);
+    expect(await (await request("shops", owner)).json()).toEqual(shops);
+    expect(await (await request("shops", other)).json()).toEqual([{ id: "shop-1", enabled: true }]);
+    expect((await request("shops", owner, "PUT", [{ id: "invalid", enabled: true }])).status).not.toBe(200);
+    expect((await request("shops", owner, "PUT", shops.map((shop) => ({ ...shop, enabled: false })))).status).not.toBe(200);
   });
 
   it("hides old foreign-machine ledgers and unowned legacy data", async () => {

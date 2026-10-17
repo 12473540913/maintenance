@@ -55,7 +55,7 @@ describe("frontend request destinations", () => {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ machineIds })
+      body: JSON.stringify({ machineIds, shopId: "shop-1" })
     });
   });
 

@@ -1,4 +1,4 @@
-import type { Completion, DueInstance, Machine, Profile, Rule, TaskDefinition, TaskLedger, ValidationValue } from "@maintenance/shared";
+import type { Completion, DueInstance, Machine, Profile, Rule, ShopSetting, TaskDefinition, TaskLedger, ValidationValue } from "@maintenance/shared";
 
 const apiBaseUrl = import.meta.env.DEV ? "/api" : normalizeApiBase(import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL) || "https://api.maintenance.lnks.info/api";
 const authBaseUrl = import.meta.env.DEV ? "" : normalizeApiBase(import.meta.env.VITE_AUTH_BASE_URL) || "https://auth.lnks.info";
@@ -52,6 +52,8 @@ export const api = {
   saveLedger: (ledger: TaskLedger) => put<TaskLedger>(`/task-ledgers/${encodeURIComponent(ledger.machineId)}`, ledger),
   profile: () => get<Profile>("/profile"),
   saveProfile: (profile: Profile) => put<Profile>("/profile", profile),
+  shops: () => get<ShopSetting[]>("/shops"),
+  saveShops: (shops: ShopSetting[]) => put<ShopSetting[]>("/shops", shops),
   dashboard: () => get<DueInstance[]>("/dashboard"),
   machines: () => get<Machine[]>("/machines"),
   rules: () => get<Rule[]>("/rules"),
@@ -62,6 +64,6 @@ export const api = {
   updateMachine: (id: string, machine: Omit<Machine, "id">) => put<Machine>(`/machines/${encodeURIComponent(id)}`, machine),
   archiveMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}/archive`),
   deleteMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}`),
-  reorderMachines: (machineIds: string[]) => post<{ updated: number }>("/machines/reorder", { machineIds }),
+  reorderMachines: (machineIds: string[], shopId = "shop-1") => post<{ updated: number }>("/machines/reorder", { machineIds, shopId }),
   updateOdometer: (id: string, currentOdometer: number, currentOdometerDate: string) => fetch(`${apiBaseUrl}/machines/${id}/odometer`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentOdometer, currentOdometerDate }) })
 };

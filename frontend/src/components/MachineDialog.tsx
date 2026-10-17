@@ -33,8 +33,9 @@ async function readImage(file: File): Promise<string> {
   return data;
 }
 
-export function MachineDialog({ machine, onClose, onSaved }: {
+export function MachineDialog({ machine, shopId, onClose, onSaved }: {
   machine?: Machine;
+  shopId: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -103,7 +104,7 @@ export function MachineDialog({ machine, onClose, onSaved }: {
       setSaving(true);
       setError("");
       try {
-        const payload: Omit<Machine, "id"> = { ...values, code: values.code.trim(), type: values.type.trim(), status: values.status };
+        const payload: Omit<Machine, "id"> = { ...values, shopId: machine?.shopId ?? shopId, code: values.code.trim(), type: values.type.trim(), status: values.status };
         if (imageData) {
           payload.imageData = imageData;
           payload.imageUrl = "";

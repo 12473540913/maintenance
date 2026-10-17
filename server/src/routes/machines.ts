@@ -7,12 +7,13 @@ import { oid, serialize } from "../db/helpers.js";
 export const machinesRouter = Router();
 
 const ReorderMachinesSchema = z.object({
-  machineIds: z.array(z.string().regex(/^[\da-f]{24}$/i))
+  machineIds: z.array(z.string().regex(/^[\da-f]{24}$/i)),
+  shopId: z.string().regex(/^shop-\d+$/).default("shop-1")
 });
 
 machinesRouter.post("/reorder", async (req, res, next) => {
   try {
-    const { machineIds } = ReorderMachinesSchema.parse(req.body);
+    const { machineIds, shopId } = ReorderMachinesSchema.parse(req.body);
     if (new Set(machineIds).size !== machineIds.length) {
       res.status(400).json({ error: "Machine order cannot contain duplicates." });
       return;
@@ -20,10 +21,11 @@ machinesRouter.post("/reorder", async (req, res, next) => {
 
     const userId: string = res.locals.user.id;
     const machines = (await getDb()).collection("machines");
-    const ownedMachines = await machines.find({ userId, archived: { $ne: true } }).project<{ _id: { toString(): string } }>({ _id: 1 }).toArray();
-    const ownedIds = new Set(ownedMachines.map(({ _id }) => _id.toString()));
+    const ownedMachines = await machines.find({ userId, archived: { $ne: true } }).project<{ _id: { toString(): string }; shopId?: string }>({ _id: 1, shopId: 1 }).toArray();
+    const shopMachines = ownedMachines.filter((machine) => (machine.shopId ?? "shop-1") === shopId);
+    const ownedIds = new Set(shopMachines.map(({ _id }) => _id.toString()));
     if (machineIds.length !== ownedIds.size || machineIds.some((id) => !ownedIds.has(id))) {
-      res.status(400).json({ error: "Machine order must include all of your machines." });
+      res.status(400).json({ error: "Machine order must include all items in this shop." });
       return;
     }
     if (machineIds.length === 0) {

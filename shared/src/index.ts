@@ -21,6 +21,7 @@ export type ImageCrop = z.infer<typeof ImageCropSchema>;
 
 export const MachineSchema = z.object({
   id: z.string().optional(),
+  shopId: z.string().regex(/^shop-\d+$/).optional(),
   code: z.string(),
   type: z.string(),
   name: z.string().optional(),
@@ -45,6 +46,15 @@ export const MachineSchema = z.object({
   reminderMiles: z.union([z.string(), z.number().nonnegative()]).optional(),
   reminderYears: z.union([z.string(), z.number().nonnegative()]).optional()
 });
+export const ShopSettingSchema = z.object({
+  id: z.string().regex(/^shop-\d+$/),
+  enabled: z.boolean()
+});
+export const ShopSettingsSchema = z.array(ShopSettingSchema)
+  .min(1)
+  .refine((shops) => shops[0]?.id === "shop-1", "Shop 1 must be first.")
+  .refine((shops) => new Set(shops.map(({ id }) => id)).size === shops.length, "Shop IDs must be unique.")
+  .refine((shops) => shops.some(({ enabled }) => enabled), "At least one shop must be enabled.");
 
 export const LedgerRowSchema = z.object({
   id: z.string().min(1),
@@ -142,6 +152,7 @@ export const CompletionSchema = z.object({
 });
 
 export type Machine = z.infer<typeof MachineSchema>;
+export type ShopSetting = z.infer<typeof ShopSettingSchema>;
 export type ValidationCategory = z.infer<typeof ValidationCategorySchema>;
 export type ValidationValue = z.infer<typeof ValidationValueSchema>;
 export type Rule = z.infer<typeof RuleSchema>;

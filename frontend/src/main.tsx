@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Completion, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
+import type { Completion, Machine, ShopSetting, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "./lib/api";
 import { authClient, type AppAuthSession } from "./lib/authClient";
 import { AuthFooter } from "./components/AuthFooter";
@@ -18,6 +18,8 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [view, setView] = useState<View>("shop");
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [shops, setShops] = useState<ShopSetting[]>([{ id: "shop-1", enabled: true }]);
+  const [selectedShopId, setSelectedShopId] = useState("shop-1");
   const [tasks, setTasks] = useState<TaskDefinition[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [ledgers, setLedgers] = useState<TaskLedger[]>([]);
@@ -27,17 +29,18 @@ function App() {
   const [loadAttempt, setLoadAttempt] = useState(0);
 
   const loadData = async () => {
-    const [nextMachines, nextTasks, nextLedgers, nextCompletions] = await Promise.all([api.machines(), api.tasks(), api.ledgers(), api.completions()]);
-    setMachines(nextMachines); setTasks(nextTasks); setLedgers(nextLedgers); setCompletions(nextCompletions); setLoaded(true); setError("");
+    const [nextMachines, nextTasks, nextLedgers, nextCompletions, nextShops] = await Promise.all([api.machines(), api.tasks(), api.ledgers(), api.completions(), api.shops()]);
+    setMachines(nextMachines); setTasks(nextTasks); setLedgers(nextLedgers); setCompletions(nextCompletions); setShops(nextShops); setLoaded(true); setError("");
   };
-  const saveMachineOrder = async (machineIds: string[]) => {
+  const saveMachineOrder = async (machineIds: string[], shopId: string) => {
     const previousMachines = machines;
     const positions = new Map(machineIds.map((id, index) => [id, index]));
     setMachines(machines
-      .map((machine) => ({ ...machine, shopOrder: positions.get(machine.id ?? "") ?? machine.shopOrder }))
-      .sort((a, b) => (positions.get(a.id ?? "") ?? Number.MAX_SAFE_INTEGER) - (positions.get(b.id ?? "") ?? Number.MAX_SAFE_INTEGER)));
+      .map((machine) => (machine.shopId ?? "shop-1") === shopId
+        ? { ...machine, shopOrder: positions.get(machine.id ?? "") ?? machine.shopOrder }
+        : machine));
     try {
-      await api.reorderMachines(machineIds);
+      await api.reorderMachines(machineIds, shopId);
     } catch (reason) {
       setMachines(previousMachines);
       throw reason;
@@ -58,12 +61,16 @@ function App() {
     let disposed = false;
     setMachines([]); setTasks([]); setLedgers([]); setCompletions([]); setLoaded(false); setDirty(false);
     if (session) {
-      void Promise.all([api.machines(), api.tasks(), api.ledgers(), api.completions()]).then(([nextMachines, nextTasks, nextLedgers, nextCompletions]) => {
-        if (!disposed) { setMachines(nextMachines); setTasks(nextTasks); setLedgers(nextLedgers); setCompletions(nextCompletions); setLoaded(true); setError(""); }
+      void Promise.all([api.machines(), api.tasks(), api.ledgers(), api.completions(), api.shops()]).then(([nextMachines, nextTasks, nextLedgers, nextCompletions, nextShops]) => {
+        if (!disposed) { setMachines(nextMachines); setTasks(nextTasks); setLedgers(nextLedgers); setCompletions(nextCompletions); setShops(nextShops); setLoaded(true); setError(""); }
       }).catch((reason) => { if (!disposed) setError(reason instanceof Error ? reason.message : "Could not load your shop."); });
     }
     return () => { disposed = true; };
   }, [session, loadAttempt]);
+  useEffect(() => {
+    if (shops.some((shop) => shop.id === selectedShopId && shop.enabled)) return;
+    setSelectedShopId(shops.find((shop) => shop.enabled)?.id ?? "shop-1");
+  }, [shops, selectedShopId]);
   const navigate = (next: View) => {
     if (next === view) return;
     if (dirty && !window.confirm("Discard unsaved task changes?")) return;
@@ -81,9 +88,9 @@ function App() {
     <div className="site-content">
       {error && <div className="alert" role="alert">{error} <button className="text-button" onClick={() => setLoadAttempt(loadAttempt + 1)}>Retry</button></div>}
       {!loaded && !error && view !== "profile" && <p className="loading" role="status">Loading your shop...</p>}
-      {loaded && view === "tasks" && <TasksView machines={machines} tasks={tasks} ledgers={ledgers} completions={completions} onDirty={setDirty} onShop={() => navigate("shop")} onSaved={(saved) => setLedgers((current) => [...current.filter((ledger) => ledger.machineId !== saved.machineId), saved])} />}
-      {loaded && view === "shop" && <ShopView machines={machines} onSaved={loadData} onReorder={saveMachineOrder} />}
-      {view === "profile" && <ProfileView session={session} />}
+      {loaded && view === "tasks" && <TasksView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} tasks={tasks} ledgers={ledgers} completions={completions} onDirty={setDirty} onShop={() => navigate("shop")} onSaved={(saved) => setLedgers((current) => [...current.filter((ledger) => ledger.machineId !== saved.machineId), saved])} />}
+      {loaded && view === "shop" && <ShopView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} shops={shops} selectedShopId={selectedShopId} onSelectShop={setSelectedShopId} onSaved={loadData} onReorder={saveMachineOrder} />}
+      {view === "profile" && <ProfileView session={session} shops={shops} shopsReady={loaded} onShopsChange={setShops} />}
     </div>
     <AuthFooter />
   </div>;
