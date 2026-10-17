@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MachineSchema, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
-import { initialLedger, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
+import { initialLedger, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
 
 const tasks: TaskDefinition[] = [
   { id: "t1", machineId: "m1", name: "Change oil", category: "Engine", ruleId: "r1", notes: "Use specified oil" },
@@ -23,6 +23,32 @@ describe("manual task ledgers", () => {
   it("keeps deliberately empty saved ledgers empty", () => {
     const saved: TaskLedger = { machineId: "m1", sections: [] };
     expect(initialLedger("m1", [saved], tasks)).toBe(saved);
+  });
+  it("moves whole sections in either direction without changing tasks or timeline entries", () => {
+    const ledger = initialLedger("m1", [], tasks, [{ id: "c1", taskDefinitionId: "t1", completedAt: "2026-01-01", note: "Done" }]);
+    ledger.sections.push({ id: "empty", name: "Empty", rows: [] });
+    const original = structuredClone(ledger);
+    const moved = moveLedgerSection(ledger, ledger.sections[0].id, 1);
+    expect(moved.sections.map((section) => section.id)).toEqual([ledger.sections[1].id, ledger.sections[0].id, "empty"]);
+    expect(moved.sections[1]).toBe(ledger.sections[0]);
+    expect(moved.sections[1].rows).toHaveLength(2);
+    expect(moved.sections[1].rows[0].timeline[0].value).toBe("Done");
+    expect(ledger).toEqual(original);
+    expect(moveLedgerSection(moved, ledger.sections[0].id, -1)).toEqual(original);
+    expect(moveLedgerSection(ledger, "empty", -1).sections.map((section) => section.id)).toEqual([ledger.sections[0].id, "empty", ledger.sections[1].id]);
+    expect(TaskLedgerSchema.parse(JSON.parse(JSON.stringify(moved)))).toEqual(moved);
+    expect(initialLedger("m1", [moved], tasks)).toBe(moved);
+  });
+  it("does not move sections beyond the first or last position", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    expect(moveLedgerSection(ledger, ledger.sections[0].id, -1)).toBe(ledger);
+    expect(moveLedgerSection(ledger, ledger.sections[1].id, 1)).toBe(ledger);
+    expect(moveLedgerSection(ledger, "missing", 1)).toBe(ledger);
+    const empty: TaskLedger = { machineId: "m1", sections: [] };
+    expect(moveLedgerSection(empty, "missing", -1)).toBe(empty);
+    const single = { ...ledger, sections: [ledger.sections[0]] };
+    expect(moveLedgerSection(single, single.sections[0].id, -1)).toBe(single);
+    expect(moveLedgerSection(single, single.sections[0].id, 1)).toBe(single);
   });
   it("accepts freely entered labels and timeline values with exact round-trip shape", () => {
     const ledger: TaskLedger = { machineId: "m1", sections: [{ id: "s1", name: "Any section", rows: [{ id: "t1", code: "ENG-1", action: "Inspect", description: "Check everything", timeline: [{ id: "e1", label: "5k / Jul 07", value: "NA" }, { id: "e2", label: "Whenever", value: "Not yet" }] }] }] };

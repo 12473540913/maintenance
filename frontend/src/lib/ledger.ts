@@ -2,6 +2,15 @@ import type { Completion, TaskDefinition, TaskLedger } from "@maintenance/shared
 
 export type TimelineColor = "red" | "green" | "orange" | "blue";
 
+export function moveLedgerSection(ledger: TaskLedger, sectionId: string, offset: -1 | 1): TaskLedger {
+  const index = ledger.sections.findIndex((section) => section.id === sectionId);
+  const targetIndex = index + offset;
+  if (index < 0 || targetIndex < 0 || targetIndex >= ledger.sections.length) return ledger;
+  const sections = [...ledger.sections];
+  [sections[index], sections[targetIndex]] = [sections[targetIndex], sections[index]];
+  return { ...ledger, sections };
+}
+
 export function timelineColor(entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number]): TimelineColor | undefined {
   if (entry.color) return entry.color;
   const label = entry.label.trim().toLowerCase();

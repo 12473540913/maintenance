@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
-import { initialLedger, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
+import { initialLedger, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
 import { itemName } from "./ShopView";
 
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
@@ -77,10 +77,13 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     <fieldset disabled={saving} className="ledger-fields">
       {draft.sections.map((section) => <div className="ledger-section" key={section.id}>
         <div className="ledger-section-heading"><h4>{field("Section name", section.name, (name) => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, name } : entry) }))}</h4>
-          {editing && <button className="text-button danger" onClick={() => {
+          {editing && <div className="task-row-actions"><button type="button" className="text-button danger" onClick={() => {
             if (section.rows.length && !window.confirm("Remove this section and its task rows?")) return;
             change({ ...draft, sections: draft.sections.filter((entry) => entry.id !== section.id) });
-          }}>Remove section</button>}
+          }}>Remove section</button>
+            <button type="button" className="text-button task-row-move" aria-label="Move section up" title="Move section up" disabled={draft.sections[0]?.id === section.id} onClick={() => change(moveLedgerSection(draft, section.id, -1))}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 7.5 4-4 4 4" /></svg></button>
+            <button type="button" className="text-button task-row-move" aria-label="Move section down" title="Move section down" disabled={draft.sections[draft.sections.length - 1]?.id === section.id} onClick={() => change(moveLedgerSection(draft, section.id, 1))}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
+          </div>}
         </div>
         <div className="table-scroll"><table className="ledger-table"><thead><tr><th scope="col">ID</th><th scope="col">Action</th><th scope="col">Task</th><th scope="col" className="timeline-heading">Timeline</th>{editing && <th scope="col"><span className="sr-only">Remove</span></th>}</tr></thead><tbody>
           {section.rows.map((row) => <tr key={row.id}>
