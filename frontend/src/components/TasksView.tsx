@@ -25,10 +25,10 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
   return <main className="tasks-page" aria-label="Tasks">
     <div className="tasks-toolbar">
       <div className="item-filters" role="group" aria-label="Filter tasks by item">
-        {allSelected ? allButton : machines.map((machine) => <button key={machine.id} className={`button ${filter === machine.id ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setFilter(machine.id!)} aria-pressed={filter === machine.id}>{itemName(machine)}</button>)}
+        {allButton}
+        {machines.map((machine) => <button key={machine.id} className={`button ${filter === machine.id ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setFilter(machine.id!)} aria-pressed={filter === machine.id}>{itemName(machine)}</button>)}
       </div>
       <div className="tasks-actions">
-        {!allSelected && allButton}
         <time className="tasks-current-date" dateTime={currentDate.toISOString()}>{currentMonthYear}</time>
         <button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button>
       </div>
