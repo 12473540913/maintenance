@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MachineSchema, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
-import { initialLedger } from "../../frontend/src/lib/ledger.js";
+import { initialLedger, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
 
 const tasks: TaskDefinition[] = [
   { id: "t1", machineId: "m1", name: "Change oil", category: "Engine", ruleId: "r1", notes: "Use specified oil" },
@@ -28,6 +28,19 @@ describe("manual task ledgers", () => {
     const ledger: TaskLedger = { machineId: "m1", sections: [{ id: "s1", name: "Any section", rows: [{ id: "t1", code: "ENG-1", action: "Inspect", description: "Check everything", timeline: [{ id: "e1", label: "5k / Jul 07", value: "NA" }, { id: "e2", label: "Whenever", value: "Not yet" }] }] }] };
     expect(TaskLedgerSchema.parse(JSON.parse(JSON.stringify(ledger)))).toEqual(ledger);
     expect(TaskLedgerSchema.safeParse({ machineId: "", sections: [] }).success).toBe(false);
+  });
+  it("preserves status colors through the legacy label field", () => {
+    const entry = { id: "e1", label: "", value: "10,000" };
+    const blue = setTimelineColor(entry, "blue");
+    expect(blue).toMatchObject({ color: "blue", label: "blue" });
+    const legacyBlue = { ...blue, color: undefined };
+    expect(timelineColor(legacyBlue)).toBe("blue");
+    expect(timelineLabel(legacyBlue)).toBe("");
+
+    const green = setTimelineColor(entry, "green");
+    expect(timelineColor({ ...green, color: undefined })).toBe("green");
+    expect(timelineLabel(green)).toBe("");
+    expect(timelineLabel(setTimelineColor({ ...green, label: "Completed" }, "green"))).toBe("Completed");
   });
 });
 

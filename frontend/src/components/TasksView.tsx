@@ -1,17 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
-import { initialLedger } from "../lib/ledger";
+import { initialLedger, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
 import { itemName } from "./ShopView";
-
-type TimelineColor = "red" | "green" | "orange" | "blue";
-
-function timelineColor(entry: LedgerRow["timeline"][number]): TimelineColor | undefined {
-  if (entry.color) return entry.color;
-  const label = entry.label.trim().toLowerCase();
-  if (label === "red" || label === "green" || label === "orange" || label === "blue") return label;
-  return label ? "green" : undefined;
-}
 
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
   machines: Machine[]; ledgers: TaskLedger[]; tasks: TaskDefinition[]; completions: Completion[]; onSaved: (ledger: TaskLedger) => void; onShop: () => void; onDirty: (dirty: boolean) => void;
@@ -87,18 +78,13 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             <td>{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}</td>
             <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => {
               const color = timelineColor(entry);
-              const legacyColorLabel = entry.color === undefined && entry.label.trim().toLowerCase() === color;
-              const label = legacyColorLabel ? "" : entry.label;
+              const label = timelineLabel(entry);
               return <div className={`timeline-entry${color ? ` timeline-status-${color}` : ""}`} key={entry.id}>
               <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
               <div className="timeline-label">{editing
                 ? <select aria-label="Timeline status" value={color ?? ""} onChange={(event) => {
                   const nextColor = event.target.value as TimelineColor | "";
-                  changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? {
-                    ...cell,
-                    color: nextColor || undefined,
-                    label: nextColor === "green" && !legacyColorLabel ? cell.label : ""
-                  } : cell) }));
+                  changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? setTimelineColor(cell, nextColor) : cell) }));
                 }}>
                   <option value="">Select status</option>
                   <option value="red">Red - Expected done</option>

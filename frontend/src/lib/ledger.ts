@@ -1,5 +1,31 @@
 import type { Completion, TaskDefinition, TaskLedger } from "@maintenance/shared";
 
+export type TimelineColor = "red" | "green" | "orange" | "blue";
+
+export function timelineColor(entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number]): TimelineColor | undefined {
+  if (entry.color) return entry.color;
+  const label = entry.label.trim().toLowerCase();
+  if (label === "red" || label === "green" || label === "orange" || label === "blue") return label;
+  return label ? "green" : undefined;
+}
+
+export function timelineLabel(entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number]): string {
+  return entry.label.trim().toLowerCase() === timelineColor(entry) ? "" : entry.label;
+}
+
+export function setTimelineColor(
+  entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number],
+  nextColor: TimelineColor | ""
+) {
+  const currentColor = timelineColor(entry);
+  const label = timelineLabel(entry);
+  return {
+    ...entry,
+    color: nextColor || undefined,
+    label: nextColor === "green" ? (currentColor === "green" ? label || "green" : "green") : nextColor
+  };
+}
+
 export function initialLedger(machineId: string, saved: TaskLedger[], tasks: TaskDefinition[], completions: Completion[] = []): TaskLedger {
   const existing = saved.find((ledger) => ledger.machineId === machineId);
   if (existing) return existing;
