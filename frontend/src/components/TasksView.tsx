@@ -12,6 +12,8 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
   const [dirtyMachines, setDirtyMachines] = useState<Set<string>>(() => new Set());
   const dirty = dirtyMachines.size > 0;
   const allSelected = filter === "all";
+  const currentDate = new Date();
+  const currentMonthYear = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(currentDate);
   const allButton = <button className={`button ${allSelected ? "primary" : "subtle"}`} disabled={dirty || !machines.length} onClick={() => setFilter(allSelected ? machines[0].id! : "all")} aria-pressed={allSelected}>All</button>;
   useEffect(() => { onDirty(dirty); }, [dirty, onDirty]);
   useEffect(() => {
@@ -26,6 +28,7 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
       </div>
       <div className="tasks-actions">
         {!allSelected && allButton}
+        <time className="tasks-current-date" dateTime={currentDate.toISOString()}>{currentMonthYear}</time>
         <button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button>
       </div>
     </div>
@@ -45,6 +48,12 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const odometer = machine.currentOdometer;
+  const odometerValue = typeof odometer === "number"
+    ? `${odometer.toLocaleString("en-US")} mi`
+    : odometer?.trim()
+      ? `${Number.isFinite(Number(odometer)) ? Number(odometer).toLocaleString("en-US") : odometer} mi`
+      : "—";
   useEffect(() => { if (!dirty) setDraft(ledger); }, [ledger, dirty]);
   const change = (next: TaskLedger) => { setDraft(next); setDirty(true); onDirty(true); };
   const changeRow = (sectionId: string, rowId: string, update: (row: LedgerRow) => LedgerRow) => change({
@@ -56,12 +65,15 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     : value || <span className="not-set">—</span>;
   return <section className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
     <div className="ledger-heading"><div><h3>{itemName(machine)}</h3></div>
-      {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
+      <div className="ledger-heading-meta">
+        <p className="ledger-odometer"><strong>{odometerValue}</strong></p>
+        {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
         setSaving(true); setError("");
         try { const saved = await api.saveLedger(draft); onSaved(saved); setDirty(false); onDirty(false); }
         catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save tasks."); }
         finally { setSaving(false); }
       }}>{saving ? "Saving..." : "Save changes"}</button></div>}
+      </div>
     </div>
     {error && <div className="alert" role="alert">{error}</div>}
     <fieldset disabled={saving} className="ledger-fields">
