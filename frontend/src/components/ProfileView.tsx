@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ShopSetting } from "@maintenance/shared";
+import { shopName, type ShopSetting } from "@maintenance/shared";
 import { authClient, type AppAuthSession } from "../lib/authClient";
 import { api } from "../lib/api";
 
@@ -20,19 +20,32 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [savingShops, setSavingShops] = useState(false);
+  const [shopsSaved, setShopsSaved] = useState(false);
+  const [editingShops, setEditingShops] = useState(false);
+  const [shopDraft, setShopDraft] = useState<ShopSetting[]>([]);
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError(""); setMessage("");
     try { await action(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Account request failed."); }
     finally { setBusy(false); }
   };
-  const saveShops = async (nextShops: ShopSetting[]) => {
+  const saveShops = async () => {
+    if (shopDraft.some((shop) => !shop.name?.trim())) {
+      setError("Enter a name for every shop before saving.");
+      return;
+    }
     setSavingShops(true);
     setError("");
     setMessage("");
-    try { onShopsChange(await api.saveShops(nextShops)); }
+    try {
+      onShopsChange(await api.saveShops(shopDraft));
+      setShopsSaved(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+      setEditingShops(false);
+      setShopDraft([]);
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save shop controls."); }
-    finally { setSavingShops(false); }
+    finally { setSavingShops(false); setShopsSaved(false); }
   };
   return <main className="profile-page">
     <div className="profile-layout">
@@ -44,26 +57,40 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
         {section === "controls" && <section className="shop-controls">
           <div className="shop-controls-heading">
             <div><h3>Controls</h3><p className="muted">Enable shops to make them available from the Shop screen.</p></div>
-            <button className="button primary shop-add-button" disabled={!shopsReady || savingShops} aria-label="Add shop" onClick={() => {
-              const nextNumber = Math.max(0, ...shops.map(({ id }) => Number(id.slice("shop-".length)))) + 1;
-              void saveShops([...shops, { id: `shop-${nextNumber}`, enabled: true }]);
-            }}>+ Add shop</button>
+            {!editingShops
+              ? <button className="button primary" disabled={!shopsReady} onClick={() => { setShopDraft(shops.map((shop) => ({ ...shop, name: shop.name ?? shopName(shop) }))); setEditingShops(true); }}>Edit</button>
+              : <div className="shop-control-actions">
+                <button className="button primary" disabled={!shopsReady || savingShops} onClick={() => void saveShops()}>{savingShops ? shopsSaved ? "Saved" : "Saving..." : "Save"}</button>
+                <button className="button subtle" disabled={savingShops} onClick={() => { setEditingShops(false); setShopDraft([]); setError(""); }}>Cancel</button>
+              </div>}
           </div>
           {!shopsReady ? <p className="muted" role="status">Loading shop controls...</p> : <div className="shop-control-list">
-            {shops.map(({ id, enabled }) => {
-              const number = Number(id.slice("shop-".length));
-              const enabledCount = shops.filter((shop) => shop.enabled).length;
+            {(editingShops ? shopDraft : shops).map((shop) => {
+              const { id, enabled } = shop;
+              const enabledCount = (editingShops ? shopDraft : shops).filter((entry) => entry.enabled).length;
+              const canDelete = editingShops && shopDraft.length > 1 && (!enabled || enabledCount > 1);
               return <div className="shop-control-row" key={id}>
-                <span>{`Shop ${number}`}</span>
+                <div className="shop-control-name">
+                  {editingShops && <button type="button" className="shop-delete-button" aria-label={`Delete ${shopName(shop)}`} title={!canDelete && shopDraft.length === 1 ? "At least one shop must remain." : !canDelete ? "Enable another shop before deleting this one." : `Delete ${shopName(shop)}`} disabled={!canDelete || savingShops} onClick={() => {
+                    if (!window.confirm(`Deleting ${shopName(shop)} will permanently delete its items and their tasks and history when you save. Continue?`)) return;
+                    setShopDraft((current) => current.filter((entry) => entry.id !== id));
+                  }}>×</button>}
+                  {editingShops
+                    ? <input className="shop-name-input" aria-label={`Name for ${shopName(shop)}`} maxLength={60} required value={shop.name ?? shopName(shop)} onChange={(event) => setShopDraft((current) => current.map((entry) => entry.id === id ? { ...entry, name: event.target.value } : entry))} />
+                    : <span>{shopName(shop)}</span>}
+                </div>
                 <label className="shop-toggle">
-                  <input type="checkbox" checked={enabled} disabled={savingShops || (enabled && enabledCount === 1)} onChange={(event) => {
-                    const nextShops = shops.map((shop) => shop.id === id ? { ...shop, enabled: event.target.checked } : shop);
-                    void saveShops(nextShops);
+                  <input type="checkbox" checked={enabled} disabled={!editingShops || savingShops || (enabled && enabledCount === 1)} onChange={(event) => {
+                    setShopDraft((current) => current.map((entry) => entry.id === id ? { ...entry, enabled: event.target.checked } : entry));
                   }} />
                   <span>{enabled ? "Enabled" : "Disabled"}</span>
                 </label>
               </div>;
             })}
+            {editingShops && <button className="button subtle shop-add-footer" disabled={savingShops} aria-label="Add shop" onClick={() => {
+              const nextNumber = Math.max(0, ...shopDraft.map(({ id }) => Number(id.slice("shop-".length)))) + 1;
+              setShopDraft((current) => [...current, { id: `shop-${nextNumber}`, name: `Shop ${nextNumber}`, enabled: true }]);
+            }}>+ Add shop</button>}
           </div>}
         </section>}
         {section === "session" && <section>

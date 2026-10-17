@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Machine, ShopSetting } from "@maintenance/shared";
+import { shopName, type Machine, type ShopSetting } from "@maintenance/shared";
 import { MachineDialog } from "./MachineDialog";
 import { imageCropStyle } from "../lib/imageCrop";
 
@@ -115,7 +115,7 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
       <button className="shop-card add-card" onClick={() => setForm("new")} aria-label="Add new item"><span aria-hidden="true">+</span></button>
     </div>
     {availableShops.length > 1 && <nav className="shop-switcher" aria-label="Choose shop">
-      {availableShops.map((shop) => <button key={shop.id} className={selectedShopId === shop.id ? "selected" : ""} aria-current={selectedShopId === shop.id ? "page" : undefined} onClick={() => onSelectShop(shop.id)}>{`Shop ${Number(shop.id.slice("shop-".length))}`}</button>)}
+      {availableShops.map((shop) => <button key={shop.id} className={selectedShopId === shop.id ? "selected" : ""} aria-current={selectedShopId === shop.id ? "page" : undefined} onClick={() => onSelectShop(shop.id)}>{shopName(shop)}</button>)}
     </nav>}
     </div>
     {form && <MachineDialog machine={form === "new" ? undefined : form} shopId={selectedShopId} onClose={() => setForm(null)} onSaved={onSaved} />}

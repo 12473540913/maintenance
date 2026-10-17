@@ -32,6 +32,7 @@ function matches(row: Document, filter: Document): boolean {
     if (value && typeof value === "object") {
       if ("$in" in value) return value.$in.includes(row[key]);
       if ("$ne" in value) return row[key] !== value.$ne;
+      if ("$exists" in value) return value.$exists ? key in row : !(key in row);
       throw new Error(`Unsupported test filter: ${key}`);
     }
     return value === null ? row[key] == null : row[key] === value;
@@ -106,6 +107,11 @@ beforeEach(async () => {
       const index = data[name].findIndex((row) => matches(row, filter));
       if (index !== -1) data[name].splice(index, 1);
       return { acknowledged: true, deletedCount: index === -1 ? 0 : 1 };
+    });
+    vi.spyOn(collection, "deleteMany").mockImplementation(async (filter) => {
+      const deleted = data[name].filter((row) => matches(row, filter));
+      data[name] = data[name].filter((row) => !matches(row, filter));
+      return { acknowledged: true, deletedCount: deleted.length };
     });
     vi.spyOn(collection, "findOneAndUpdate").mockImplementation(async (filter, update) => {
       const row = data[name].find((row) => matches(row, filter));
@@ -244,12 +250,30 @@ describe("user-owned API data", () => {
 
   it("persists shop settings per user and supplies the default primary shop", async () => {
     expect(await (await request("shops", owner)).json()).toEqual([{ id: "shop-1", enabled: true }]);
-    const shops = [{ id: "shop-1", enabled: true }, { id: "shop-2", enabled: false }];
+    const shops = [{ id: "shop-1", name: "Main garage", enabled: true }, { id: "shop-2", name: "Workshop", enabled: false }];
     expect((await request("shops", owner, "PUT", shops)).status).toBe(200);
     expect(await (await request("shops", owner)).json()).toEqual(shops);
     expect(await (await request("shops", other)).json()).toEqual([{ id: "shop-1", enabled: true }]);
     expect((await request("shops", owner, "PUT", [{ id: "invalid", enabled: true }])).status).not.toBe(200);
+    expect((await request("shops", owner, "PUT", [{ id: "shop-1", name: " ", enabled: true }])).status).not.toBe(200);
     expect((await request("shops", owner, "PUT", shops.map((shop) => ({ ...shop, enabled: false })))).status).not.toBe(200);
+  });
+
+  it("deletes a removed shop's machines, tasks, ledgers, and completion history", async () => {
+    const secondMachineId = new ObjectId();
+    const secondTaskId = new ObjectId();
+    data.machines.push({ _id: secondMachineId, userId: owner, shopId: "shop-2", code: "BIKE", type: "Motorcycle" });
+    data.taskDefinitions.push({ _id: secondTaskId, userId: owner, machineId: secondMachineId.toHexString(), ruleId: ruleId.toHexString(), name: "Tune-up" });
+    data.completions.push({ _id: new ObjectId(), userId: owner, taskDefinitionId: secondTaskId.toHexString(), completedAt: "2026-01-01" });
+    data.taskLedgers.push({ _id: new ObjectId(), userId: owner, machineId: secondMachineId.toHexString(), sections: [] });
+    const shops = [{ id: "shop-1", enabled: true }, { id: "shop-2", enabled: true }];
+    expect((await request("shops", owner, "PUT", shops)).status).toBe(200);
+
+    expect((await request("shops", owner, "PUT", [{ id: "shop-1", enabled: true }])).status).toBe(200);
+    expect(data.machines.some((row) => row._id === secondMachineId)).toBe(false);
+    expect(data.taskDefinitions.some((row) => row._id === secondTaskId)).toBe(false);
+    expect(data.completions.some((row) => row.taskDefinitionId === secondTaskId.toHexString())).toBe(false);
+    expect(data.taskLedgers.some((row) => row.machineId === secondMachineId.toHexString())).toBe(false);
   });
 
   it("hides old foreign-machine ledgers and unowned legacy data", async () => {
