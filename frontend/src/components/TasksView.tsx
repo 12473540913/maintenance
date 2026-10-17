@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
-import { initialLedger, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
+import { initialLedger, moveLedgerRow, moveLedgerSection, redEntryCount, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
 import { AnnualInspectionDialog } from "./AnnualInspectionDialog";
 import { itemName } from "./ShopView";
 
@@ -50,6 +50,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [annualInspectionOpen, setAnnualInspectionOpen] = useState(false);
+  const totalReds = draft.sections.reduce((total, section) => total + section.rows.reduce((count, row) => count + redEntryCount(row), 0), 0);
   const odometer = machine.currentOdometer;
   const odometerValue = typeof odometer === "number"
     ? `${odometer.toLocaleString("en-US")} mi`
@@ -69,6 +70,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     <div className="ledger-heading">
       <button type="button" className="button subtle annual-inspection-trigger" onClick={() => setAnnualInspectionOpen(true)}>Annual Inspection</button>
       <div className="ledger-heading-title"><h3>{itemName(machine)}</h3></div>
+      {totalReds > 0 && <span className="ledger-red-count" aria-label={`${totalReds} red timeline ${totalReds === 1 ? "entry" : "entries"}`} title={`${totalReds} red timeline ${totalReds === 1 ? "entry" : "entries"}`}>{totalReds}</span>}
       <div className="ledger-heading-meta">
         <p className="ledger-odometer"><strong>{odometerValue}</strong></p>
         {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
@@ -93,8 +95,10 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
         </div>
         <div className="table-scroll"><table className="ledger-table"><thead><tr><th scope="col">ID</th><th scope="col">Task</th><th scope="col" className="timeline-heading">Timeline</th>{editing && <th scope="col"><span className="sr-only">Remove</span></th>}</tr></thead><tbody>
           {section.rows.map((row, rowIndex) => <tr key={row.id}>
-            <td>{field("Task ID", row.code, (code) => changeRow(section.id, row.id, (entry) => ({ ...entry, code })))}</td>
-            <td>{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}</td>
+            <td><div className="task-code">{field("Task ID", row.code, (code) => changeRow(section.id, row.id, (entry) => ({ ...entry, code })))}</div></td>
+            <td className="task-description"><div className="task-description-content">{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}
+              {redEntryCount(row) > 0 && <span className="task-red-marker" role="img" aria-label="Task has red timeline entries" title="Task has red timeline entries" />}
+            </div></td>
             <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => {
               const color = timelineColor(entry);
               const label = timelineLabel(entry);

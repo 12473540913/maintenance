@@ -1,4 +1,4 @@
-import type { AnnualInspectionSection, AnnualInspectionTask, Completion, TaskDefinition, TaskLedger } from "@maintenance/shared";
+import type { AnnualInspectionSection, AnnualInspectionTask, Completion, LedgerRow, TaskDefinition, TaskLedger } from "@maintenance/shared";
 
 export type TimelineColor = "red" | "green" | "orange" | "blue";
 
@@ -79,6 +79,10 @@ export function timelineColor(entry: TaskLedger["sections"][number]["rows"][numb
   const label = entry.label.trim().toLowerCase();
   if (label === "red" || label === "green" || label === "orange" || label === "blue") return label;
   return label ? "green" : undefined;
+}
+
+export function redEntryCount(row: LedgerRow): number {
+  return row.timeline.filter((entry) => timelineColor(entry) === "red").length;
 }
 
 export function timelineLabel(entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number]): string {

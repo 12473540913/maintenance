@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MachineSchema, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
-import { initialLedger, moveAnnualInspectionTask, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
+import { initialLedger, moveAnnualInspectionTask, moveLedgerRow, moveLedgerSection, redEntryCount, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
 
 const tasks: TaskDefinition[] = [
   { id: "t1", machineId: "m1", name: "Change oil", category: "Engine", ruleId: "r1", notes: "Use specified oil" },
@@ -10,6 +10,26 @@ const tasks: TaskDefinition[] = [
 ];
 
 describe("manual task ledgers", () => {
+  it("counts individual red entries using the same explicit and legacy colors as the timeline", () => {
+    const row = initialLedger("m1", [], tasks).sections[0].rows[0];
+    expect(redEntryCount(row)).toBe(0);
+    row.timeline = [
+      { id: "red", label: "", value: "", color: "red" },
+      { id: "legacy-red", label: " RED ", value: "10,000" },
+      { id: "green", label: "red", value: "", color: "green" },
+      { id: "note", label: "Replaced red filter", value: "" },
+      { id: "orange", label: "orange", value: "" },
+      { id: "blue", label: "", value: "red", color: "blue" },
+      { id: "unset", label: "", value: "" }
+    ];
+    expect(redEntryCount(row)).toBe(2);
+    row.timeline = row.timeline.map((entry) => setTimelineColor(entry, "green"));
+    expect(redEntryCount(row)).toBe(0);
+    row.timeline[0] = setTimelineColor(row.timeline[0], "red");
+    expect(redEntryCount(row)).toBe(1);
+    row.timeline = row.timeline.filter((entry) => entry.id !== "red");
+    expect(redEntryCount(row)).toBe(0);
+  });
   it("moves annual inspection tasks up and down within and across sections", () => {
     const sections = [{ id: "engine", name: "Engine" }, { id: "brakes", name: "Brakes" }];
     const tasks = [
