@@ -77,15 +77,8 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             <td>{field("Task action", row.action, (action) => changeRow(section.id, row.id, (entry) => ({ ...entry, action })))}</td>
             <td>{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}</td>
             <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => <div className="timeline-entry" key={entry.id}>
-              {editing
-                ? <>
-                  <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
-                  <div className="timeline-label">{field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}</div>
-                </>
-                : <>
-                  {field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}
-                  <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
-                </>}
+              <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
+              <div className="timeline-label">{field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}</div>
               {editing && <button className="text-button danger" aria-label="Remove timeline entry" onClick={() => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.filter((cell) => cell.id !== entry.id) }))}>Remove</button>}
             </div>)}
               {!editing && !row.timeline.length && <span className="not-set">No entries</span>}
