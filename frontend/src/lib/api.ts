@@ -19,11 +19,22 @@ export function authUrl(path: string): string {
 }
 
 async function parseError(response: Response): Promise<Error> {
-  const payload = await response.json().catch(() => null);
+  const body = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+  }
   if (payload && typeof payload === "object" && "error" in payload) {
     return new Error(String(payload.error));
   }
-  return new Error(await response.text().catch(() => "Request failed."));
+  if (body.trim() && !response.headers.get("content-type")?.includes("text/html") && !body.trimStart().startsWith("<")) {
+    return new Error(`${body} (HTTP ${response.status})`);
+  }
+  return new Error(response.status === 404
+    ? "API endpoint not found (HTTP 404). The deployed API may be out of date."
+    : `Request failed (HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}).`);
 }
 
 async function get<T>(path: string): Promise<T> { const response = await fetch(`${apiBaseUrl}${path}`, { credentials: "include" }); if (!response.ok) throw await parseError(response); return response.json(); }

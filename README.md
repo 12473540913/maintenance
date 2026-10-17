@@ -119,6 +119,10 @@ The runtime image must include the built `shared` workspace because the API impo
 
 Map `api.maintenance.lnks.info` to Cloud Run. Its `/api/health` endpoint must return `{"ok":true}`; the same path on the Pages hostname may return frontend HTML. The Dockerfile also includes the built frontend, but Pages remains the public frontend host in this setup.
 
+Deploy API changes to Cloud Run before publishing frontend features that depend on them to Pages. A successful Pages deployment does not update the Cloud Run API, and a healthy `/api/health` response does not verify that new routes are deployed.
+
+If dragging Shop items fails with `POST /api/machines/reorder` returning **404** and an HTML response (`Cannot POST /api/machines/reorder`), the serving API revision is missing the reorder route. Rebuild and deploy the Cloud Run service from the current repository's Dockerfile, and verify traffic reaches the new revision. No database migration is required for ordering. After deployment, reorder items while signed in, confirm the request returns `200` with `{"updated":<item count>}`, and reload to confirm the saved order persists. A JSON `400` or `409` response instead indicates validation or changed items; follow its error message rather than treating it as a missing deployment.
+
 Register `maintenance` in auth-service with `AUTH_TOKEN_MODE_MAINTENANCE=cookie`, `AUTH_ORIGINS_MAINTENANCE=https://maintenance.lnks.info`, `AUTH_COOKIE_DOMAIN_MAINTENANCE=.lnks.info`, and `ATLAS_URI_MAINTENANCE` pointed at this production maintenance database. The shared cookie domain allows auth-service's session cookie to reach the API subdomain. Both services must use the same JWT secret and cookie name.
 
 ### Domain model
