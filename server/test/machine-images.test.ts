@@ -95,6 +95,38 @@ describe("machine image persistence", () => {
     expect(updateOne).toHaveBeenCalledWith({ _id: id, userId }, { $set: expect.objectContaining({ imageData: image, imageUrl: "" }) });
   });
 
+  it("streams image lists larger than Cloud Run's 32 MiB buffered response limit", async () => {
+    const largeImage = `data:image/png;base64,${Buffer.alloc(MAX_IMAGE_BYTES).toString("base64")}`;
+    const rows = Array.from({ length: 5 }, (_, index) => ({
+      _id: new ObjectId(), userId, code: `CAR-${index}`, type: "Car", imageData: largeImage,
+      imageCrop: { x: 0.15, y: 0.85, zoom: 2.25 }
+    }));
+    find.mockReturnValue({ toArray: async () => rows } as ReturnType<typeof collection.find>);
+    const response = await fetch(baseUrl);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("transfer-encoding")).toBe("chunked");
+    expect(response.headers.get("content-length")).toBeNull();
+    const body = await response.text();
+    expect(Buffer.byteLength(body)).toBeGreaterThan(32 * 1024 * 1024);
+    expect(JSON.parse(body)).toEqual(rows.map(({ _id, ...row }) => ({ ...row, id: _id.toHexString() })));
+    expect(find).toHaveBeenCalledWith({ userId, archived: { $ne: true } });
+  });
+
+  it("returns an empty JSON array when there are no items", async () => {
+    find.mockReturnValue({ toArray: async () => [] } as ReturnType<typeof collection.find>);
+    const response = await fetch(baseUrl);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+  });
+
+  it("returns database failures before starting the stream", async () => {
+    find.mockReturnValue({ toArray: async () => { throw new Error("Database unavailable"); } } as ReturnType<typeof collection.find>);
+    const response = await fetch(baseUrl);
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Database unavailable" });
+  });
+
   it("persists crop and zoom alongside the original image and returns them on reload", async () => {
     const imageCrop = { x: 0.15, y: 0.85, zoom: 2.25 };
     const response = await save("POST", { imageData: image, imageCrop });

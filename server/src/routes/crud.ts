@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { pipeline } from "node:stream/promises";
 import { CompletionSchema, MachineSchema, RuleSchema, TaskDefinitionSchema } from "@maintenance/shared";
 import { getDb } from "../db/mongo.js";
 import { oid, serialize } from "../db/helpers.js";
@@ -19,8 +20,27 @@ for (const collectionName of ["machines", "rules", "taskDefinitions", "completio
         ? { userId: res.locals.user.id, archived: { $ne: true } }
         : { userId: res.locals.user.id };
       const rows = await (await getDb()).collection(collectionName).find(filter).toArray();
-      res.json(rows.map((row) => serialize(row)));
-    } catch (error) { next(error); }
+      if (collectionName === "machines") {
+        // Chunked responses avoid Cloud Run's 32 MiB non-streaming response limit.
+        res.type("json");
+        await pipeline((async function* () {
+          yield "[";
+          for (let index = 0; index < rows.length; index++) {
+            yield `${index ? "," : ""}${JSON.stringify(serialize(rows[index]))}`;
+          }
+          yield "]";
+        })(), res);
+      } else {
+        res.json(rows.map((row) => serialize(row)));
+      }
+    } catch (error) {
+      if (res.headersSent || res.destroyed) {
+        console.error(`Failed to stream ${collectionName} response`, error);
+        res.destroy();
+      } else {
+        next(error);
+      }
+    }
   });
   for (const method of ["post", "put"] as const) {
     crudRouter[method](method === "post" ? `/${collectionName}` : `/${collectionName}/:id`, async (req, res, next) => {

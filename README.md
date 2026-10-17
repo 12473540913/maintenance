@@ -124,6 +124,8 @@ Map `api.maintenance.lnks.info` to Cloud Run. Its `/api/health` endpoint must re
 
 Deploy API changes to Cloud Run before publishing frontend features that depend on them to Pages. A successful Pages deployment does not update the Cloud Run API, and a healthy `/api/health` response does not verify that new routes are deployed.
 
+If `GET /api/machines` fails with **500**, a browser CORS warning, and Cloud Run logs report **Response size was too large**, the combined item images exceeded Cloud Run's 32 MiB non-streaming HTTP/1 response limit. The item-list endpoint uses chunked JSON streaming so existing images and the response format remain unchanged without that buffered-response limit. Deploy the streaming API fix; changing CORS settings, increasing container memory, or deleting saved images is not required. Verify the signed-in item-list request succeeds, not just the unauthenticated health endpoint.
+
 If dragging Shop items fails with `POST /api/machines/reorder` returning **404** and an HTML response (`Cannot POST /api/machines/reorder`), the serving API revision is missing the reorder route. Check Cloud Run **traffic**, not just successful build history: an explicit pin to an older revision remains in place when the build trigger updates the service image. The maintenance API must route 100% to **Latest**, rather than a named revision, to serve new successful deployments automatically. With production approval, restore that policy using:
 
 ```bash
