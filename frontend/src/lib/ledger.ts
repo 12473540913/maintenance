@@ -11,6 +11,31 @@ export function moveLedgerSection(ledger: TaskLedger, sectionId: string, offset:
   return { ...ledger, sections };
 }
 
+export function moveLedgerRow(ledger: TaskLedger, sectionId: string, rowId: string, offset: -1 | 1): TaskLedger {
+  const sectionIndex = ledger.sections.findIndex((section) => section.id === sectionId);
+  if (sectionIndex < 0) return ledger;
+  const section = ledger.sections[sectionIndex];
+  const rowIndex = section.rows.findIndex((row) => row.id === rowId);
+  if (rowIndex < 0) return ledger;
+  const targetIndex = rowIndex + offset;
+  const sections = [...ledger.sections];
+  const rows = [...section.rows];
+  if (targetIndex >= 0 && targetIndex < rows.length) {
+    [rows[rowIndex], rows[targetIndex]] = [rows[targetIndex], rows[rowIndex]];
+  } else {
+    const targetSectionIndex = sectionIndex + offset;
+    if (targetSectionIndex < 0 || targetSectionIndex >= sections.length) return ledger;
+    const targetSection = sections[targetSectionIndex];
+    const [row] = rows.splice(rowIndex, 1);
+    sections[targetSectionIndex] = {
+      ...targetSection,
+      rows: offset === -1 ? [...targetSection.rows, row] : [row, ...targetSection.rows]
+    };
+  }
+  sections[sectionIndex] = { ...section, rows };
+  return { ...ledger, sections };
+}
+
 export function timelineColor(entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number]): TimelineColor | undefined {
   if (entry.color) return entry.color;
   const label = entry.label.trim().toLowerCase();

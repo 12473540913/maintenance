@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MachineSchema, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
-import { initialLedger, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
+import { initialLedger, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
 
 const tasks: TaskDefinition[] = [
   { id: "t1", machineId: "m1", name: "Change oil", category: "Engine", ruleId: "r1", notes: "Use specified oil" },
@@ -49,6 +49,60 @@ describe("manual task ledgers", () => {
     const single = { ...ledger, sections: [ledger.sections[0]] };
     expect(moveLedgerSection(single, single.sections[0].id, -1)).toBe(single);
     expect(moveLedgerSection(single, single.sections[0].id, 1)).toBe(single);
+  });
+  it("reorders tasks within a section in either direction without mutating the ledger", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    const original = structuredClone(ledger);
+    const moved = moveLedgerRow(ledger, ledger.sections[0].id, "t1", 1);
+    expect(moved.sections[0].rows.map((row) => row.id)).toEqual(["t2", "t1"]);
+    expect(moved.sections[1]).toBe(ledger.sections[1]);
+    expect(moveLedgerRow(moved, ledger.sections[0].id, "t1", -1)).toEqual(original);
+    expect(ledger).toEqual(original);
+  });
+  it("moves boundary tasks to the adjacent section's top or bottom with all data intact", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    const row = ledger.sections[0].rows[0];
+    row.code = "ENG-1";
+    row.action = "Inspect";
+    row.timeline = [{ id: "e1", label: "Completed", value: "10,000", color: "green" }];
+    const original = structuredClone(ledger);
+    const movedUp = moveLedgerRow(ledger, ledger.sections[1].id, "t3", -1);
+    expect(movedUp.sections.map((section) => section.rows.map((entry) => entry.id))).toEqual([["t1", "t2", "t3"], []]);
+    expect(moveLedgerRow(movedUp, ledger.sections[0].id, "t3", 1)).toEqual(original);
+
+    const movedDown = moveLedgerRow(ledger, ledger.sections[0].id, "t2", 1);
+    expect(movedDown.sections.map((section) => section.rows.map((entry) => entry.id))).toEqual([["t1"], ["t2", "t3"]]);
+    const movedAgain = moveLedgerRow(movedDown, ledger.sections[0].id, "t1", 1);
+    expect(movedAgain.sections.map((section) => section.rows.map((entry) => entry.id))).toEqual([[], ["t1", "t2", "t3"]]);
+    expect(movedAgain.sections[1].rows[0]).toBe(row);
+    expect(movedAgain.machineId).toBe("m1");
+    expect(ledger).toEqual(original);
+    const saved = TaskLedgerSchema.parse(JSON.parse(JSON.stringify(movedAgain)));
+    expect(saved).toEqual(movedAgain);
+    expect(initialLedger("m1", [saved], tasks)).toBe(saved);
+    expect(moveLedgerRow(movedAgain, ledger.sections[1].id, "t1", -1)).toEqual(movedDown);
+  });
+  it("moves into adjacent empty sections without skipping them", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    ledger.sections.splice(1, 0, { id: "empty", name: "Empty", rows: [] });
+    const movedDown = moveLedgerRow(ledger, ledger.sections[0].id, "t2", 1);
+    expect(movedDown.sections.map((section) => section.rows.map((row) => row.id))).toEqual([["t1"], ["t2"], ["t3"]]);
+    const movedUp = moveLedgerRow(ledger, ledger.sections[2].id, "t3", -1);
+    expect(movedUp.sections.map((section) => section.rows.map((row) => row.id))).toEqual([["t1", "t2"], ["t3"], []]);
+  });
+  it("does not move tasks outside an item or move missing tasks", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    expect(moveLedgerRow(ledger, ledger.sections[0].id, "t1", -1)).toBe(ledger);
+    expect(moveLedgerRow(ledger, ledger.sections[1].id, "t3", 1)).toBe(ledger);
+    expect(moveLedgerRow(ledger, "missing", "t1", 1)).toBe(ledger);
+    expect(moveLedgerRow(ledger, ledger.sections[0].id, "missing", -1)).toBe(ledger);
+    expect(moveLedgerRow(ledger, ledger.sections[0].id, "t4", 1)).toBe(ledger);
+    expect(moveLedgerRow({ machineId: "m1", sections: [] }, "missing", "t1", 1)).toEqual({ machineId: "m1", sections: [] });
+    const single = { ...ledger, sections: [{ ...ledger.sections[0], rows: [ledger.sections[0].rows[0]] }] };
+    expect(moveLedgerRow(single, single.sections[0].id, "t1", -1)).toBe(single);
+    expect(moveLedgerRow(single, single.sections[0].id, "t1", 1)).toBe(single);
+    const empty = { ...ledger, sections: [{ id: "empty", name: "Empty", rows: [] }] };
+    expect(moveLedgerRow(empty, "empty", "t1", 1)).toBe(empty);
   });
   it("accepts freely entered labels and timeline values with exact round-trip shape", () => {
     const ledger: TaskLedger = { machineId: "m1", sections: [{ id: "s1", name: "Any section", rows: [{ id: "t1", code: "ENG-1", action: "Inspect", description: "Check everything", timeline: [{ id: "e1", label: "5k / Jul 07", value: "NA" }, { id: "e2", label: "Whenever", value: "Not yet" }] }] }] };

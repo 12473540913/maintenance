@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
-import { initialLedger, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
+import { initialLedger, moveLedgerRow, moveLedgerSection, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
 import { itemName } from "./ShopView";
 
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
@@ -29,7 +29,7 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
         <button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button>
       </div>
     </div>
-    {editing && <p className="edit-help">Create your own sections and rows. Timeline values are free text; choose a status color for each entry. Green entries can include a text note. Save each item's changes before leaving edit mode.</p>}
+    {editing && <p className="edit-help">Create your own sections and rows. Task arrows move rows up or down; at a section boundary, they move the task into the adjacent section within the same item. Timeline values are free text; choose a status color for each entry. Green entries can include a text note. Save each item's changes before leaving edit mode.</p>}
     {!machines.length && <div className="empty"><h3>Start with an item</h3><p>Add a car, bike, or anything else you maintain to your shop.</p><button className="button primary" onClick={onShop}>Open shop</button></div>}
     {machines.filter((machine) => filter === "all" || machine.id === filter).map((machine) => machine.id && <ItemLedger key={machine.id} machine={machine} ledger={initialLedger(machine.id, ledgers, tasks, completions)} editing={editing} onSaved={onSaved} onDirty={(value) => {
       setDirtyMachines((current) => { const next = new Set(current); if (value) next.add(machine.id!); else next.delete(machine.id!); return next; });
@@ -50,17 +50,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const changeRow = (sectionId: string, rowId: string, update: (row: LedgerRow) => LedgerRow) => change({
     ...draft, sections: draft.sections.map((section) => section.id !== sectionId ? section : { ...section, rows: section.rows.map((row) => row.id === rowId ? update(row) : row) })
   });
-  const moveRow = (sectionId: string, rowId: string, offset: -1 | 1) => change({
-    ...draft, sections: draft.sections.map((section) => {
-      if (section.id !== sectionId) return section;
-      const index = section.rows.findIndex((row) => row.id === rowId);
-      const targetIndex = index + offset;
-      if (index < 0 || targetIndex < 0 || targetIndex >= section.rows.length) return section;
-      const rows = [...section.rows];
-      [rows[index], rows[targetIndex]] = [rows[targetIndex], rows[index]];
-      return { ...section, rows };
-    })
-  });
+  const moveRow = (sectionId: string, rowId: string, offset: -1 | 1) => change(moveLedgerRow(draft, sectionId, rowId, offset));
   const field = (label: string, value: string, onChange: (value: string) => void) => editing
     ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />
     : value || <span className="not-set">—</span>;
@@ -75,7 +65,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     </div>
     {error && <div className="alert" role="alert">{error}</div>}
     <fieldset disabled={saving} className="ledger-fields">
-      {draft.sections.map((section) => <div className="ledger-section" key={section.id}>
+      {draft.sections.map((section, sectionIndex) => <div className="ledger-section" key={section.id}>
         <div className="ledger-section-heading"><h4>{field("Section name", section.name, (name) => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, name } : entry) }))}</h4>
           {editing && <div className="task-row-actions"><button type="button" className="text-button danger" onClick={() => {
             if (section.rows.length && !window.confirm("Remove this section and its task rows?")) return;
@@ -85,10 +75,9 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             <button type="button" className="text-button task-row-move" aria-label="Move section down" title="Move section down" disabled={draft.sections[draft.sections.length - 1]?.id === section.id} onClick={() => change(moveLedgerSection(draft, section.id, 1))}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
           </div>}
         </div>
-        <div className="table-scroll"><table className="ledger-table"><thead><tr><th scope="col">ID</th><th scope="col">Action</th><th scope="col">Task</th><th scope="col" className="timeline-heading">Timeline</th>{editing && <th scope="col"><span className="sr-only">Remove</span></th>}</tr></thead><tbody>
-          {section.rows.map((row) => <tr key={row.id}>
+        <div className="table-scroll"><table className="ledger-table"><thead><tr><th scope="col">ID</th><th scope="col">Task</th><th scope="col" className="timeline-heading">Timeline</th>{editing && <th scope="col"><span className="sr-only">Remove</span></th>}</tr></thead><tbody>
+          {section.rows.map((row, rowIndex) => <tr key={row.id}>
             <td>{field("Task ID", row.code, (code) => changeRow(section.id, row.id, (entry) => ({ ...entry, code })))}</td>
-            <td>{field("Task action", row.action, (action) => changeRow(section.id, row.id, (entry) => ({ ...entry, action })))}</td>
             <td>{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}</td>
             <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => {
               const color = timelineColor(entry);
@@ -116,8 +105,8 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             </div></td>
             {editing && <td><div className="task-row-actions">
               <button type="button" className="text-button danger" aria-label="Remove task row" onClick={() => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, rows: entry.rows.filter((task) => task.id !== row.id) } : entry) })}>Remove</button>
-              <button type="button" className="text-button task-row-move" aria-label="Move task up" title="Move task up" disabled={section.rows[0]?.id === row.id} onClick={() => moveRow(section.id, row.id, -1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 7.5 4-4 4 4" /></svg></button>
-              <button type="button" className="text-button task-row-move" aria-label="Move task down" title="Move task down" disabled={section.rows[section.rows.length - 1]?.id === row.id} onClick={() => moveRow(section.id, row.id, 1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
+              <button type="button" className="text-button task-row-move" aria-label="Move task up" title={rowIndex === 0 && sectionIndex > 0 ? "Move task to bottom of previous section" : "Move task up"} disabled={rowIndex === 0 && sectionIndex === 0} onClick={() => moveRow(section.id, row.id, -1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 7.5 4-4 4 4" /></svg></button>
+              <button type="button" className="text-button task-row-move" aria-label="Move task down" title={rowIndex === section.rows.length - 1 && sectionIndex < draft.sections.length - 1 ? "Move task to top of next section" : "Move task down"} disabled={rowIndex === section.rows.length - 1 && sectionIndex === draft.sections.length - 1} onClick={() => moveRow(section.id, row.id, 1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
             </div></td>}
           </tr>)}
         </tbody></table></div>

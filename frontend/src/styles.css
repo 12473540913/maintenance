@@ -81,13 +81,12 @@ footer { text-align: center; padding: 22px; font-size: 11px; color: var(--muted)
 .ledger-table th { font-weight: 500; color: var(--muted); font-size: 10px; letter-spacing: .4px; padding: 0 12px 13px; }
 .ledger-table td { vertical-align: top; padding: 17px 12px; border-top: 1px solid var(--sand-soft); }
 .ledger-table th:first-child, .ledger-table td:first-child { padding-left: 0; width: 80px; }
-.ledger-table th:nth-child(2), .ledger-table td:nth-child(2) { width: 88px; }
-.ledger-table th:nth-child(3), .ledger-table td:nth-child(3) { width: 26%; line-height: 1.7; }
+.ledger-table th:nth-child(2), .ledger-table td:nth-child(2) { width: 26%; line-height: 1.7; }
 .ledger-table .timeline-heading, .ledger-table .timeline-cell { border-left: 1px solid var(--line); padding-left: 12px; }
 .ledger-table .timeline-heading { text-align: center; }
 .item-ledger.editing .ledger-table { min-width: 880px; }
 .item-ledger.editing .ledger-table th:first-child, .item-ledger.editing .ledger-table td:first-child { width: 96px; }
-.item-ledger.editing .ledger-table th:nth-child(2), .item-ledger.editing .ledger-table td:nth-child(2) { width: 104px; }
+.item-ledger.editing .ledger-table th:nth-child(2), .item-ledger.editing .ledger-table td:nth-child(2) { width: 26%; }
 .item-ledger.editing .ledger-table th:last-child, .item-ledger.editing .ledger-table td:last-child { width: 108px; }
 .item-ledger.editing .ledger-table td:last-child { vertical-align: bottom; }
 .task-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 3px; white-space: nowrap; }
