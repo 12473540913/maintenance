@@ -50,6 +50,17 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const changeRow = (sectionId: string, rowId: string, update: (row: LedgerRow) => LedgerRow) => change({
     ...draft, sections: draft.sections.map((section) => section.id !== sectionId ? section : { ...section, rows: section.rows.map((row) => row.id === rowId ? update(row) : row) })
   });
+  const moveRow = (sectionId: string, rowId: string, offset: -1 | 1) => change({
+    ...draft, sections: draft.sections.map((section) => {
+      if (section.id !== sectionId) return section;
+      const index = section.rows.findIndex((row) => row.id === rowId);
+      const targetIndex = index + offset;
+      if (index < 0 || targetIndex < 0 || targetIndex >= section.rows.length) return section;
+      const rows = [...section.rows];
+      [rows[index], rows[targetIndex]] = [rows[targetIndex], rows[index]];
+      return { ...section, rows };
+    })
+  });
   const field = (label: string, value: string, onChange: (value: string) => void) => editing
     ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />
     : value || <span className="not-set">—</span>;
@@ -100,7 +111,11 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
               {!editing && !row.timeline.length && <span className="not-set">No entries</span>}
               {editing && <button className="text-button" onClick={() => changeRow(section.id, row.id, (current) => ({ ...current, timeline: [...current.timeline, { id: crypto.randomUUID(), label: "", value: "" }] }))}>+ Entry</button>}
             </div></td>
-            {editing && <td><button className="text-button danger" aria-label="Remove task row" onClick={() => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, rows: entry.rows.filter((task) => task.id !== row.id) } : entry) })}>Remove</button></td>}
+            {editing && <td><div className="task-row-actions">
+              <button type="button" className="text-button danger" aria-label="Remove task row" onClick={() => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, rows: entry.rows.filter((task) => task.id !== row.id) } : entry) })}>Remove</button>
+              <button type="button" className="text-button task-row-move" aria-label="Move task up" title="Move task up" disabled={section.rows[0]?.id === row.id} onClick={() => moveRow(section.id, row.id, -1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 7.5 4-4 4 4" /></svg></button>
+              <button type="button" className="text-button task-row-move" aria-label="Move task down" title="Move task down" disabled={section.rows[section.rows.length - 1]?.id === row.id} onClick={() => moveRow(section.id, row.id, 1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
+            </div></td>}
           </tr>)}
         </tbody></table></div>
         {!section.rows.length && <p className="section-empty">No task rows yet.</p>}

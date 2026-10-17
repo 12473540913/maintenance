@@ -88,8 +88,11 @@ footer { text-align: center; padding: 22px; font-size: 11px; color: var(--muted)
 .item-ledger.editing .ledger-table { min-width: 880px; }
 .item-ledger.editing .ledger-table th:first-child, .item-ledger.editing .ledger-table td:first-child { width: 96px; }
 .item-ledger.editing .ledger-table th:nth-child(2), .item-ledger.editing .ledger-table td:nth-child(2) { width: 104px; }
-.item-ledger.editing .ledger-table th:last-child, .item-ledger.editing .ledger-table td:last-child { width: 80px; }
+.item-ledger.editing .ledger-table th:last-child, .item-ledger.editing .ledger-table td:last-child { width: 108px; }
 .item-ledger.editing .ledger-table td:last-child { vertical-align: bottom; }
+.task-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 3px; white-space: nowrap; }
+.task-row-move { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 24px; padding: 0; }
+.task-row-move svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
 .item-ledger.view-mode .ledger-table td { vertical-align: bottom; line-height: 1.6; }
 .item-ledger.view-mode .timeline-entries { align-items: end; }
 .item-ledger.editing .ledger-table input { line-height: 1.6; }
