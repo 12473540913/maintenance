@@ -41,7 +41,12 @@ export const LedgerRowSchema = z.object({
   code: z.string(),
   action: z.string(),
   description: z.string(),
-  timeline: z.array(z.object({ id: z.string().min(1), label: z.string(), value: z.string() }))
+  timeline: z.array(z.object({
+    id: z.string().min(1),
+    label: z.string(),
+    value: z.string(),
+    color: z.enum(["red", "green", "orange", "blue"]).optional()
+  }))
 });
 
 export const TaskLedgerSchema = z.object({

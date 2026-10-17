@@ -4,6 +4,15 @@ import { api } from "../lib/api";
 import { initialLedger } from "../lib/ledger";
 import { itemName } from "./ShopView";
 
+type TimelineColor = "red" | "green" | "orange" | "blue";
+
+function timelineColor(entry: LedgerRow["timeline"][number]): TimelineColor | undefined {
+  if (entry.color) return entry.color;
+  const label = entry.label.trim().toLowerCase();
+  if (label === "red" || label === "green" || label === "orange" || label === "blue") return label;
+  return label ? "green" : undefined;
+}
+
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
   machines: Machine[]; ledgers: TaskLedger[]; tasks: TaskDefinition[]; completions: Completion[]; onSaved: (ledger: TaskLedger) => void; onShop: () => void; onDirty: (dirty: boolean) => void;
 }) {
@@ -29,7 +38,7 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
         <button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button>
       </div>
     </div>
-    {editing && <p className="edit-help">Create your own sections and rows. Timeline labels and values are free text. Save each item's changes before leaving edit mode.</p>}
+    {editing && <p className="edit-help">Create your own sections and rows. Timeline values are free text; choose a status color for each entry. Green entries can include a text note. Save each item's changes before leaving edit mode.</p>}
     {!machines.length && <div className="empty"><h3>Start with an item</h3><p>Add a car, bike, or anything else you maintain to your shop.</p><button className="button primary" onClick={onShop}>Open shop</button></div>}
     {machines.filter((machine) => filter === "all" || machine.id === filter).map((machine) => machine.id && <ItemLedger key={machine.id} machine={machine} ledger={initialLedger(machine.id, ledgers, tasks, completions)} editing={editing} onSaved={onSaved} onDirty={(value) => {
       setDirtyMachines((current) => { const next = new Set(current); if (value) next.add(machine.id!); else next.delete(machine.id!); return next; });
@@ -76,11 +85,32 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             <td>{field("Task ID", row.code, (code) => changeRow(section.id, row.id, (entry) => ({ ...entry, code })))}</td>
             <td>{field("Task action", row.action, (action) => changeRow(section.id, row.id, (entry) => ({ ...entry, action })))}</td>
             <td>{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}</td>
-            <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => <div className="timeline-entry" key={entry.id}>
+            <td className="timeline-cell"><div className="timeline-entries">{row.timeline.map((entry) => {
+              const color = timelineColor(entry);
+              const legacyColorLabel = entry.color === undefined && entry.label.trim().toLowerCase() === color;
+              const label = legacyColorLabel ? "" : entry.label;
+              return <div className={`timeline-entry${color ? ` timeline-status-${color}` : ""}`} key={entry.id}>
               <div className="timeline-value">{field("Timeline value", entry.value, (value) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, value } : cell) })))}</div>
-              <div className="timeline-label">{field("Timeline label", entry.label, (label) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label } : cell) })))}</div>
+              <div className="timeline-label">{editing
+                ? <><select aria-label="Timeline status" value={color ?? ""} onChange={(event) => {
+                  const nextColor = event.target.value as TimelineColor | "";
+                  changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? {
+                    ...cell,
+                    color: nextColor || undefined,
+                    label: nextColor === "green" && !legacyColorLabel ? cell.label : ""
+                  } : cell) }));
+                }}>
+                  <option value="">Select status</option>
+                  <option value="red">Red - Expected done</option>
+                  <option value="green">Green - Done (text)</option>
+                  <option value="orange">Orange - Upcoming</option>
+                  <option value="blue">Blue - Future</option>
+                </select>
+                {color === "green" && field("Timeline note", label, (nextLabel) => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.map((cell) => cell.id === entry.id ? { ...cell, label: nextLabel } : cell) })))}</>
+                : color === "green" ? label || <span className="not-set">—</span> : null}</div>
               {editing && <button className="text-button danger" aria-label="Remove timeline entry" onClick={() => changeRow(section.id, row.id, (current) => ({ ...current, timeline: current.timeline.filter((cell) => cell.id !== entry.id) }))}>Remove</button>}
-            </div>)}
+            </div>;
+            })}
               {!editing && !row.timeline.length && <span className="not-set">No entries</span>}
               {editing && <button className="text-button" onClick={() => changeRow(section.id, row.id, (current) => ({ ...current, timeline: [...current.timeline, { id: crypto.randomUUID(), label: "", value: "" }] }))}>+ Entry</button>}
             </div></td>
