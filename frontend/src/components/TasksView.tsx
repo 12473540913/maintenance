@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
 import { initialLedger, moveLedgerRow, moveLedgerSection, redEntryCount, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
 import { AnnualInspectionDialog } from "./AnnualInspectionDialog";
+import { OverdueSnapshotDialog } from "./OverdueSnapshotDialog";
 import { itemName } from "./ShopView";
 
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
@@ -50,6 +52,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [annualInspectionOpen, setAnnualInspectionOpen] = useState(false);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
   const totalReds = draft.sections.reduce((total, section) => total + section.rows.reduce((count, row) => count + redEntryCount(row), 0), 0);
   const odometer = machine.currentOdometer;
   const odometerValue = typeof odometer === "number"
@@ -68,7 +71,10 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     : value || <span className="not-set">—</span>;
   return <section className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
     <div className="ledger-heading">
-      <button type="button" className="button subtle annual-inspection-trigger" onClick={() => setAnnualInspectionOpen(true)}>Annual Inspection</button>
+      <div className="ledger-heading-actions">
+        <button type="button" className="button subtle annual-inspection-trigger" onClick={() => setAnnualInspectionOpen(true)}>Annual Inspection</button>
+        <button type="button" className="button subtle annual-inspection-trigger" onClick={() => setSnapshotOpen(true)}>Snapshot</button>
+      </div>
       <div className="ledger-heading-title"><h3>{itemName(machine)}</h3></div>
       {totalReds > 0 && <span className="ledger-red-count" aria-label={`${totalReds} red timeline ${totalReds === 1 ? "entry" : "entries"}`} title={`${totalReds} red timeline ${totalReds === 1 ? "entry" : "entries"}`}>{totalReds}</span>}
       <div className="ledger-heading-meta">
@@ -137,5 +143,6 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
       {editing && <button className="button subtle add-section" onClick={() => change({ ...draft, sections: [...draft.sections, { id: crypto.randomUUID(), name: "", rows: [] }] })}>+ Add section</button>}
     </fieldset>
     {annualInspectionOpen && <AnnualInspectionDialog machine={machine} ledger={ledger} onClose={() => setAnnualInspectionOpen(false)} onSaved={onSaved} />}
+    {snapshotOpen && createPortal(<OverdueSnapshotDialog machine={machine} ledger={draft} onClose={() => setSnapshotOpen(false)} />, document.body)}
   </section>;
 }

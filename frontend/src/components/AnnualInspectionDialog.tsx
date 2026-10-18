@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AnnualInspectionInstance, AnnualInspectionInstanceTask, AnnualInspectionSection, AnnualInspectionTask, Machine, TaskLedger } from "@maintenance/shared";
 import { api } from "../lib/api";
 import { moveAnnualInspectionTask } from "../lib/ledger";
 import { itemName } from "./ShopView";
 
-type ChecklistMode = "edit" | "instance" | "preview" | "print-preview";
+type ChecklistMode = "edit" | "instance" | "preview";
 type InstanceValues = Record<string, AnnualInspectionInstanceTask>;
 
 function createTask(sectionId?: string): AnnualInspectionTask {
@@ -108,9 +109,8 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
   const editing = mode === "edit";
   const instanceMode = mode === "instance";
   const previewing = mode === "preview";
-  const printPreview = mode === "print-preview";
-  const visibleTasks = instanceMode || printPreview ? savedTasks : tasks;
-  const visibleSections = instanceMode || printPreview ? savedSections : sections;
+  const visibleTasks = instanceMode ? savedTasks : tasks;
+  const visibleSections = instanceMode ? savedSections : sections;
   const sectionIds = new Set(visibleSections.map((section) => section.id));
   const taskGroups = [
     {
@@ -126,32 +126,29 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
   ].filter((group) => group.tasks.length > 0 || group.section);
   const taskNumbers = new Map(taskGroups.flatMap((group) => group.tasks).map((task, index) => [task.id, index + 1]));
 
-  return <dialog ref={dialog} className="annual-inspection-dialog" aria-labelledby="annual-inspection-title" onCancel={(event) => {
+  return createPortal(<dialog ref={dialog} className="annual-inspection-dialog" aria-labelledby="annual-inspection-title" onCancel={(event) => {
     event.preventDefault();
     close();
   }}>
     <div className="annual-inspection-header">
       <div className="annual-inspection-header-actions">
         <div className="annual-inspection-mode-actions">
-          {printPreview
-            ? <button type="button" className="button subtle" onClick={() => setMode("instance")}>Back to instance</button>
-            : !instanceMode
-              ? <button type="button" className="button subtle" disabled={coreDirty} title={coreDirty ? "Save checklist changes before opening the instance" : undefined} onClick={() => setMode("instance")}>Instance</button>
-              : <>
-                <button type="button" className="button primary" disabled={!instanceDirty || saving} onClick={() => void saveInstance()}>{saving ? "Saving..." : "Save"}</button>
-                <button type="button" className="button subtle" disabled={saving} onClick={() => {
-                  if (!window.confirm("Clear all notes and checkmarks for this inspection instance?")) return;
-                  setInstance({});
-                  setInstanceDirty(true);
-                }}>Clear</button>
-                <button type="button" className="button subtle" onClick={() => setMode("print-preview")}>Print Preview</button>
-                <button type="button" className="button subtle" disabled title="Printing is not available yet">Print</button>
-                <button type="button" className="button subtle" disabled={saving} onClick={() => setMode("preview")}>Exit</button>
-              </>}
+          {!instanceMode
+            ? <button type="button" className="button subtle" disabled={coreDirty} title={coreDirty ? "Save checklist changes before opening the instance" : undefined} onClick={() => setMode("instance")}>Instance</button>
+            : <>
+              <button type="button" className="button primary" disabled={!instanceDirty || saving} onClick={() => void saveInstance()}>{saving ? "Saving..." : "Save"}</button>
+              <button type="button" className="button subtle" disabled={saving} onClick={() => {
+                if (!window.confirm("Clear all notes and checkmarks for this inspection instance?")) return;
+                setInstance({});
+                setInstanceDirty(true);
+              }}>Clear</button>
+              <button type="button" className="button subtle" onClick={() => window.print()}>Print</button>
+              <button type="button" className="button subtle" disabled={saving} onClick={() => setMode("preview")}>Exit</button>
+            </>}
         </div>
         <div className="annual-inspection-view-actions">
           {editing && <button type="button" className="button primary" disabled={!coreDirty || saving} onClick={() => void saveCore()}>{saving ? "Saving..." : "Save"}</button>}
-          {!printPreview && <button type="button" className="button subtle" onClick={() => setMode(editing ? "preview" : "edit")}>{editing ? "Preview" : "Edit"}</button>}
+          <button type="button" className="button subtle" onClick={() => setMode(editing ? "preview" : "edit")}>{editing ? "Preview" : "Edit"}</button>
           <button type="button" className="icon-button" onClick={close} disabled={saving} aria-label="Close annual inspection checklist">×</button>
         </div>
       </div>
@@ -159,7 +156,7 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
     </div>
 
     {error && <div className="alert" role="alert">{error}</div>}
-    <div className={`annual-inspection-content${printPreview ? " is-print-preview" : ""}`}>
+    <div className="annual-inspection-content">
       {!visibleTasks.length && <p className="annual-inspection-empty">No annual inspection tasks yet.</p>}
       {taskGroups.map(({ id, section, tasks: groupTasks }) => <section className="annual-inspection-group" key={id}>
         {section && (editing
@@ -176,7 +173,7 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
             }} disabled={saving}>×</button>
           </div>
           : <h3 className="annual-inspection-section-title">{section.name || <span className="not-set">Section title</span>}</h3>)}
-        <ol className={`annual-inspection-list${previewing ? " task-preview-list" : ""}${printPreview ? " print-preview-list" : ""}`}>
+        <ol className={`annual-inspection-list${previewing ? " task-preview-list" : ""}`}>
           {groupTasks.map((task) => {
             const taskNumber = taskNumbers.get(task.id) ?? 0;
             const groupIndex = taskGroups.findIndex((group) => group.tasks.some((entry) => entry.id === task.id));
@@ -200,14 +197,12 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
                   </div>
                 </div>
                 : <span className="annual-inspection-description">{task.description || <span className="not-set">Task description</span>}</span>}
-              {(instanceMode || printPreview) && <div className="annual-inspection-notes">
+              {instanceMode && <div className="annual-inspection-notes">
                 {(["clientNotes", "inspectionNotes"] as const).map((key) => {
                   const label = key === "clientNotes" ? "Client notes" : "Inspection notes";
                   return <label className="annual-inspection-note" key={key}>
                     <span>{label}</span>
-                    {printPreview
-                      ? <div className="annual-inspection-note-preview">{values[key]}</div>
-                      : <input type="text" aria-label={label} value={values[key]} onChange={(event) => updateInstance(task.id, (current) => ({ ...current, [key]: event.target.value }))} disabled={saving} />}
+                    <input type="text" aria-label={label} value={values[key]} onChange={(event) => updateInstance(task.id, (current) => ({ ...current, [key]: event.target.value }))} disabled={saving} />
                   </label>;
                 })}
               </div>}
@@ -233,5 +228,5 @@ export function AnnualInspectionDialog({ machine, ledger, onClose, onSaved }: {
         setCoreDirty(true);
       }} disabled={saving}>+ Add section</button>}
     </div>
-  </dialog>;
+  </dialog>, document.body);
 }
