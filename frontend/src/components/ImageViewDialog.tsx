@@ -14,7 +14,7 @@ export function ImageViewDialog({ source, onClose }: {
     return () => element?.close();
   }, []);
 
-  return <dialog ref={dialog} className="item-dialog image-view-dialog" aria-labelledby="image-view-title" onCancel={(event) => {
+  return <dialog ref={dialog} className="image-view-dialog" aria-label="Full-size image" onCancel={(event) => {
     event.preventDefault();
     event.stopPropagation();
     onClose();
@@ -24,14 +24,10 @@ export function ImageViewDialog({ source, onClose }: {
     event.stopPropagation();
     onClose();
   }}>
-    <div className="image-view-header">
-      <h3 id="image-view-title">Full-size image</h3>
-      <button type="button" className="icon-button" aria-label="Close image" onClick={onClose}>×</button>
-    </div>
-    <p className="muted">Original image at full resolution. Scroll to see the entire image.</p>
-    {loading && <p role="status">Loading image...</p>}
+    <button type="button" className="image-view-close" aria-label="Close image" onClick={onClose}>×</button>
+    {loading && <p className="image-view-status" role="status">Loading image...</p>}
     {error && <div className="alert" role="alert">Could not load image. Close this popup and try again.</div>}
-    <div className="image-view-content" tabIndex={0} role="region" aria-label="Full-size image, scroll to explore" hidden={error}>
+    <div className="image-view-content" hidden={error}>
       <img src={source} alt="Attached item image" onLoad={() => setLoading(false)} onError={() => {
         setLoading(false);
         setError(true);

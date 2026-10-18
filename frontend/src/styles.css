@@ -207,13 +207,13 @@ label input { min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid v
 .image-picker:has(input:disabled) { opacity: .5; }
 .image-edit-button { flex: 0 0 auto; align-self: stretch; padding: 0 8px; white-space: nowrap; }
 .image-view-button { min-width: 0; padding: 0 8px; font-size: 12px; }
-.image-view-dialog { width: min(1200px, calc(100vw - 32px)); height: calc(100dvh - 32px); max-width: none; }
+.image-view-dialog { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 64px 24px 24px; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; color: white; background: transparent; }
 .image-view-dialog[open] { display: flex; flex-direction: column; }
-.image-view-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.image-view-header h3 { margin: 0; }
-.image-view-content { min-height: 0; overflow: auto; flex: 1; }
-.image-view-content:focus-visible { outline: 2px solid var(--metal); outline-offset: 3px; }
-.image-view-content img { display: block; width: auto; height: auto; max-width: none; max-height: none; }
+.image-view-dialog::backdrop { background: #000c; }
+.image-view-close { position: absolute; top: 12px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; background: transparent; color: white; font-size: 24px; }
+.image-view-status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.image-view-content { min-height: 0; min-width: 0; overflow: hidden; flex: 1; }
+.image-view-content img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .image-crop-dialog { width: min(560px, calc(100vw - 32px)); }
 .image-crop-dialog h3 { margin-bottom: 12px; font-size: 18px; font-weight: 600; }
 .image-crop-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
