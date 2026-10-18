@@ -1,6 +1,6 @@
 # Maintenance Tracker
 
-Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or other machines.
+Maintenance tracker for autos, motos, cycles, houses, equipment, or other machines.
 
 ## Demos
 - demo to come shortly!
