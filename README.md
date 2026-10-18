@@ -17,7 +17,7 @@ Maintenance tracker for vehicles, motorcycles, bicycles, houses, equipment, or o
 - Existing task definitions, notes, and completion history appear in the manual ledger until that item's first ledger is saved. Original scheduling records are retained.
 
 ## Design
-- no figma wireframes at this moment
+- https://www.figma.com/design/QTH43o7hsfIcX1GkPhDcf3/maintenance?m=auto&t=nLgEZaZuXQyS43MT-6
   
 ## Tech Stack
 
