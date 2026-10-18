@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, MachineImageSchema, type ImageCrop, type Machine } from "@maintenance/shared";
 import { api } from "../lib/api";
 import { ImageCropDialog } from "./ImageCropDialog";
+import { ImageViewDialog } from "./ImageViewDialog";
 import { DEFAULT_IMAGE_CROP } from "../lib/imageCrop";
 
 const fields = [
@@ -49,6 +50,7 @@ export function MachineDialog({ machine, shopId, onClose, onSaved }: {
   const [imageCrop, setImageCrop] = useState(machine?.imageCrop ?? DEFAULT_IMAGE_CROP);
   const [cropDraft, setCropDraft] = useState<{ source: string; crop: ImageCrop; file?: File; data?: string } | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [viewImage, setViewImage] = useState(false);
   const imageReadVersion = useRef(0);
   const [removeImage, setRemoveImage] = useState(false);
   const hasImage = Boolean(imageFile || (!removeImage && (machine?.imageData || machine?.imageUrl)));
@@ -152,10 +154,9 @@ export function MachineDialog({ machine, shopId, onClose, onSaved }: {
                 <span className="image-picker-content" aria-hidden="true">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
                   <span>{hasImage ? "Change image" : "Choose file"}</span>
-                  {imageFile && <span className="image-picker-filename">{imageFile.name}</span>}
-                  {!imageFile && hasImage && <span className="image-picker-filename">Image attached</span>}
                 </span>
               </div>
+              {hasImage && <button type="button" className="text-button image-picker-filename image-view-button" disabled={!imageSource || imageLoading} title="View full-size image" aria-label={imageFile ? `View full-size image: ${imageFile.name}` : "Image attached: view full-size image"} onClick={() => setViewImage(true)}>{imageFile?.name || "Image attached"}</button>}
               {imageSource && <button type="button" className="text-button image-edit-button" disabled={imageLoading} onClick={() => setCropDraft({ source: imageSource, crop: imageCrop })}>Edit image</button>}
               {hasImage && <button type="button" className="image-picker-remove" aria-label="Remove image" title="Remove image" onClick={() => {
                 imageReadVersion.current += 1;
@@ -182,6 +183,7 @@ export function MachineDialog({ machine, shopId, onClose, onSaved }: {
         </div>
       </div>
     </form>
+    {viewImage && imageSource && <ImageViewDialog source={imageSource} onClose={() => setViewImage(false)} />}
     {cropDraft && <ImageCropDialog source={cropDraft.source} crop={cropDraft.crop} onCancel={() => setCropDraft(null)} onSubmit={(crop) => {
       setImageCrop(crop);
       if (cropDraft.file && cropDraft.data) {
