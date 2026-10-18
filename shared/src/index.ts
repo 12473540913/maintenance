@@ -100,7 +100,12 @@ export const TaskLedgerSchema = z.object({
   sections: z.array(z.object({
     id: z.string().min(1),
     name: z.string(),
+    code: z.string().trim().min(1, "Section code is required.").optional(),
     rows: z.array(LedgerRowSchema)
+  }).superRefine((section, context) => {
+    if (section.code !== undefined && !section.name.trim()) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["name"], message: "Section name is required." });
+    }
   })),
   annualInspectionTasks: z.array(AnnualInspectionTaskSchema).optional(),
   annualInspectionSections: z.array(AnnualInspectionSectionSchema).optional(),
@@ -114,6 +119,20 @@ export type AnnualInspectionInstance = z.infer<typeof AnnualInspectionInstanceSc
 export type AnnualInspectionInstanceTask = z.infer<typeof AnnualInspectionInstanceTaskSchema>;
 export type LedgerSection = TaskLedger["sections"][number];
 export type LedgerRow = z.infer<typeof LedgerRowSchema>;
+export function numberLedgerRows(ledger: TaskLedger): TaskLedger {
+  return {
+    ...ledger,
+    sections: ledger.sections.map((section) => {
+      const code = section.code?.trim();
+      return code ? {
+        ...section,
+        code,
+        rows: section.rows.map((row, index) => ({ ...row, code: `${code}-${index + 1}` }))
+      } : section;
+    })
+  };
+}
+
 export type Profile = z.infer<typeof ProfileSchema>;
 
 export const ValidationCategorySchema = z.enum(["type", "make", "model", "spec1", "status"]);

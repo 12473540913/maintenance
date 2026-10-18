@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { TaskLedgerSchema } from "@maintenance/shared";
+import { numberLedgerRows, TaskLedgerSchema } from "@maintenance/shared";
 import { getDb } from "../db/mongo.js";
 import { oid } from "../db/helpers.js";
 
@@ -17,7 +17,7 @@ ledgersRouter.get("/", async (_req, res, next) => {
 
 ledgersRouter.put("/:machineId", async (req, res, next) => {
   try {
-    const ledger = TaskLedgerSchema.parse({ ...req.body, machineId: req.params.machineId });
+    const ledger = numberLedgerRows(TaskLedgerSchema.parse({ ...req.body, machineId: req.params.machineId }));
     const db = await getDb();
     if (!await db.collection("machines").findOne({ _id: oid(ledger.machineId), userId: res.locals.user.id })) {
       res.status(404).json({ error: "Item not found." });

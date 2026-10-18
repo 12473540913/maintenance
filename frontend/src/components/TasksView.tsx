@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Completion, LedgerRow, Machine, TaskDefinition, TaskLedger } from "@maintenance/shared";
+import { numberLedgerRows } from "@maintenance/shared";
 import { api } from "../lib/api";
-import { initialLedger, moveLedgerRow, moveLedgerSection, redEntryCount, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
+import { initialLedger, moveLedgerSection, redEntryCount, setTimelineColor, timelineColor, timelineLabel, type TimelineColor } from "../lib/ledger";
 import { AnnualInspectionDialog } from "./AnnualInspectionDialog";
 import { OverdueSnapshotDialog } from "./OverdueSnapshotDialog";
 import { itemName } from "./ShopView";
+import { useTaskRowDrag } from "../lib/useTaskRowDrag";
 
 export function TasksView({ machines, ledgers, tasks, completions, onSaved, onShop, onDirty }: {
   machines: Machine[]; ledgers: TaskLedger[]; tasks: TaskDefinition[]; completions: Completion[]; onSaved: (ledger: TaskLedger) => void; onShop: () => void; onDirty: (dirty: boolean) => void;
@@ -35,7 +37,6 @@ export function TasksView({ machines, ledgers, tasks, completions, onSaved, onSh
         <button className={`button ${editing ? "primary" : "subtle"}`} disabled={dirty} onClick={() => setEditing(!editing)} aria-pressed={editing}>{editing ? "Done editing" : "Edit"}</button>
       </div>
     </div>
-    {editing && <p className="edit-help">Create your own sections and rows. Task arrows move rows up or down; at a section boundary, they move the task into the adjacent section within the same item. Timeline values are free text; choose a status color for each entry. Green entries can include a text note. Save each item's changes before leaving edit mode.</p>}
     {!machines.length && <div className="empty"><h3>Start with an item</h3><p>Add a car, bike, or anything else you maintain to your shop.</p><button className="button primary" onClick={onShop}>Open shop</button></div>}
     {machines.filter((machine) => filter === "all" || machine.id === filter).map((machine) => machine.id && <ItemLedger key={machine.id} machine={machine} ledger={initialLedger(machine.id, ledgers, tasks, completions)} editing={editing} onSaved={onSaved} onDirty={(value) => {
       setDirtyMachines((current) => { const next = new Set(current); if (value) next.add(machine.id!); else next.delete(machine.id!); return next; });
@@ -61,15 +62,16 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
       ? `${Number.isFinite(Number(odometer)) ? Number(odometer).toLocaleString("en-US") : odometer} mi`
       : "—";
   useEffect(() => { if (!dirty) setDraft(ledger); }, [ledger, dirty]);
-  const change = (next: TaskLedger) => { setDraft(next); setDirty(true); onDirty(true); };
+  const change = (next: TaskLedger) => { setDraft(numberLedgerRows(next)); setDirty(true); onDirty(true); };
   const changeRow = (sectionId: string, rowId: string, update: (row: LedgerRow) => LedgerRow) => change({
     ...draft, sections: draft.sections.map((section) => section.id !== sectionId ? section : { ...section, rows: section.rows.map((row) => row.id === rowId ? update(row) : row) })
   });
-  const moveRow = (sectionId: string, rowId: string, offset: -1 | 1) => change(moveLedgerRow(draft, sectionId, rowId, offset));
+  const rowDrag = useTaskRowDrag(draft, change);
   const field = (label: string, value: string, onChange: (value: string) => void) => editing
     ? <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} />
     : value || <span className="not-set">—</span>;
-  return <section className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
+  return <section ref={rowDrag.rootRef} className={`item-ledger ${editing ? "editing" : "view-mode"}`} aria-label={`${itemName(machine)} tasks`}>
+    <span className="sr-only" role="status">{rowDrag.announcement}</span>
     <div className="ledger-heading">
       <div className="ledger-heading-actions">
         <button type="button" className="button subtle annual-inspection-trigger" onClick={() => setAnnualInspectionOpen(true)}>Annual Inspection</button>
@@ -80,6 +82,13 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
       <div className="ledger-heading-meta">
         <p className="ledger-odometer"><strong>{odometerValue}</strong></p>
         {editing && <div className="form-actions"><button className="button subtle" disabled={!dirty || saving} onClick={() => { setDraft(ledger); setDirty(false); onDirty(false); setError(""); }}>Discard</button><button className="button primary" disabled={!dirty || saving} onClick={async () => {
+        const invalidSection = draft.sections.find((section) => !section.name.trim() || !section.code?.trim());
+        if (invalidSection) {
+          setError("Each section needs a name and a code before saving.");
+          const section = Array.from(rowDrag.rootRef.current?.querySelectorAll<HTMLElement>("[data-task-section]") ?? []).find((entry) => entry.dataset.taskSection === invalidSection.id);
+          section?.querySelector<HTMLInputElement>(!invalidSection.name.trim() ? '[aria-label="Section name"]' : '[aria-label="Section code"]')?.focus();
+          return;
+        }
         setSaving(true); setError("");
         try { const saved = await api.saveLedger({ ...draft, annualInspectionTasks: ledger.annualInspectionTasks, annualInspectionSections: ledger.annualInspectionSections, annualInspectionInstance: ledger.annualInspectionInstance }); onSaved(saved); setDirty(false); onDirty(false); }
         catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save tasks."); }
@@ -89,8 +98,11 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
     </div>
     {error && <div className="alert" role="alert">{error}</div>}
     <fieldset disabled={saving} className="ledger-fields">
-      {draft.sections.map((section, sectionIndex) => <div className="ledger-section" key={section.id}>
-        <div className="ledger-section-heading"><h4>{field("Section name", section.name, (name) => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, name } : entry) }))}</h4>
+      {draft.sections.map((section) => <div className={`ledger-section${rowDrag.dropTarget?.sectionId === section.id && !rowDrag.dropTarget.beforeRowId ? " task-drop-at-end" : ""}`} data-task-section={section.id} key={section.id}>
+        <div className="ledger-section-heading"><h4>{editing ? <>
+          <input aria-label="Section name" required value={section.name} onChange={(event) => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, name: event.target.value } : entry) })} />
+          <input className="section-code-input" aria-label="Section code" required value={section.code ?? ""} onChange={(event) => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, code: event.target.value } : entry) })} />
+        </> : section.name || <span className="not-set">—</span>}</h4>
           {editing && <div className="task-row-actions"><button type="button" className="text-button danger" onClick={() => {
             if (section.rows.length && !window.confirm("Remove this section and its task rows?")) return;
             change({ ...draft, sections: draft.sections.filter((entry) => entry.id !== section.id) });
@@ -100,8 +112,8 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
           </div>}
         </div>
         <div className="table-scroll"><table className="ledger-table"><thead><tr><th scope="col">ID</th><th scope="col">Task</th><th scope="col" className="timeline-heading">Timeline</th>{editing && <th scope="col"><span className="sr-only">Remove</span></th>}</tr></thead><tbody>
-          {section.rows.map((row, rowIndex) => <tr key={row.id}>
-            <td><div className="task-code">{field("Task ID", row.code, (code) => changeRow(section.id, row.id, (entry) => ({ ...entry, code })))}</div></td>
+          {section.rows.map((row) => <tr key={row.id} data-task-row={row.id} className={`${rowDrag.draggedRowId === row.id ? "task-row-dragging" : ""}${rowDrag.dropTarget?.sectionId === section.id && rowDrag.dropTarget.beforeRowId === row.id ? " task-drop-before" : ""}`}>
+            <td><div className="task-code">{row.code || <span className="not-set">—</span>}</div></td>
             <td className="task-description"><div className="task-description-content">{field("Task description", row.description, (description) => changeRow(section.id, row.id, (entry) => ({ ...entry, description })))}
               {redEntryCount(row) > 0 && <span className="task-red-marker" role="img" aria-label="Task has red timeline entries" title="Task has red timeline entries" />}
             </div></td>
@@ -131,8 +143,12 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
             </div></td>
             {editing && <td><div className="task-row-actions">
               <button type="button" className="text-button danger" aria-label="Remove task row" onClick={() => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, rows: entry.rows.filter((task) => task.id !== row.id) } : entry) })}>Remove</button>
-              <button type="button" className="text-button task-row-move" aria-label="Move task up" title={rowIndex === 0 && sectionIndex > 0 ? "Move task to bottom of previous section" : "Move task up"} disabled={rowIndex === 0 && sectionIndex === 0} onClick={() => moveRow(section.id, row.id, -1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 7.5 4-4 4 4" /></svg></button>
-              <button type="button" className="text-button task-row-move" aria-label="Move task down" title={rowIndex === section.rows.length - 1 && sectionIndex < draft.sections.length - 1 ? "Move task to top of next section" : "Move task down"} disabled={rowIndex === section.rows.length - 1 && sectionIndex === draft.sections.length - 1} onClick={() => moveRow(section.id, row.id, 1)}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4.5 4 4 4-4" /></svg></button>
+              <button type="button" className="text-button task-row-drag-handle" aria-label={`Reorder task ${row.code || row.description || "row"}`} title="Drag to reorder; or use Up and Down keys" onPointerDown={(event) => rowDrag.start(event, section.id, row.id)} onKeyDown={(event) => {
+                if (!rowDrag.draggedRowId && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+                  event.preventDefault();
+                  rowDrag.moveByKeyboard(section.id, row.id, event.key === "ArrowUp" ? -1 : 1);
+                }
+              }}><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 4h12M3 9h12M3 14h12" /></svg></button>
             </div></td>}
           </tr>)}
         </tbody></table></div>
@@ -140,7 +156,7 @@ function ItemLedger({ machine, ledger, editing, onSaved, onDirty }: {
         {editing && <button className="text-button add-row" onClick={() => change({ ...draft, sections: draft.sections.map((entry) => entry.id === section.id ? { ...entry, rows: [...entry.rows, { id: crypto.randomUUID(), code: "", action: "", description: "", timeline: [] }] } : entry) })}>+ Add task row</button>}
       </div>)}
       {!draft.sections.length && <p className="section-empty">{editing ? "Add a section to begin organizing tasks." : "No sections yet. Use Edit to create your own."}</p>}
-      {editing && <button className="button subtle add-section" onClick={() => change({ ...draft, sections: [...draft.sections, { id: crypto.randomUUID(), name: "", rows: [] }] })}>+ Add section</button>}
+      {editing && <button className="button subtle add-section" onClick={() => change({ ...draft, sections: [...draft.sections, { id: crypto.randomUUID(), name: "", code: "", rows: [] }] })}>+ Add section</button>}
     </fieldset>
     {annualInspectionOpen && <AnnualInspectionDialog machine={machine} ledger={ledger} onClose={() => setAnnualInspectionOpen(false)} onSaved={onSaved} />}
     {snapshotOpen && createPortal(<OverdueSnapshotDialog machine={machine} ledger={draft} onClose={() => setSnapshotOpen(false)} />, document.body)}

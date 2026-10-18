@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MachineSchema, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
-import { initialLedger, moveAnnualInspectionTask, moveLedgerRow, moveLedgerSection, redEntryCount, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
+import { MachineSchema, numberLedgerRows, ProfileSchema, TaskLedgerSchema, type TaskDefinition, type TaskLedger } from "@maintenance/shared";
+import { initialLedger, moveAnnualInspectionTask, moveLedgerRow, moveLedgerSection, placeLedgerRow, redEntryCount, setTimelineColor, timelineColor, timelineLabel } from "../../frontend/src/lib/ledger.js";
 
 const tasks: TaskDefinition[] = [
   { id: "t1", machineId: "m1", name: "Change oil", category: "Engine", ruleId: "r1", notes: "Use specified oil" },
@@ -10,6 +10,70 @@ const tasks: TaskDefinition[] = [
 ];
 
 describe("manual task ledgers", () => {
+  it("generates sequential task codes from section codes and preserves stable row IDs and contents", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    ledger.sections[0].code = " COR ";
+    ledger.sections[1].code = "WHL";
+    const original = structuredClone(ledger);
+    const numbered = numberLedgerRows(ledger);
+    expect(numbered.sections.map((section) => section.rows.map((row) => row.code))).toEqual([["COR-1", "COR-2"], ["WHL-1"]]);
+    expect(numbered.sections[0].code).toBe("COR");
+    expect(numbered.sections[0].rows[0]).toEqual({ ...ledger.sections[0].rows[0], code: "COR-1" });
+    expect(ledger).toEqual(original);
+    expect(TaskLedgerSchema.parse(JSON.parse(JSON.stringify(numbered)))).toEqual(numbered);
+    const moved = numberLedgerRows(placeLedgerRow(numbered, numbered.sections[0].id, "t1", numbered.sections[1].id, "t3"));
+    expect(moved.sections.map((section) => section.rows.map((row) => [row.id, row.code]))).toEqual([
+      [["t2", "COR-1"]], [["t1", "WHL-1"], ["t3", "WHL-2"]]
+    ]);
+    const reordered = numberLedgerRows(moveLedgerRow(numbered, numbered.sections[0].id, "t2", -1));
+    expect(reordered.sections[0].rows.map((row) => [row.id, row.code])).toEqual([["t2", "COR-1"], ["t1", "COR-2"]]);
+    reordered.sections[0].rows.splice(0, 1);
+    reordered.sections[0].code = "ENG";
+    expect(numberLedgerRows(reordered).sections[0].rows[0].code).toBe("ENG-1");
+    reordered.sections[0].rows.push({ ...reordered.sections[0].rows[0], id: "new-row", code: "" });
+    expect(numberLedgerRows(reordered).sections[0].rows.map((row) => row.code)).toEqual(["ENG-1", "ENG-2"]);
+  });
+  it("accepts legacy sections without a code but rejects blank codes and unnamed coded sections", () => {
+    const legacy = initialLedger("m1", [], tasks);
+    legacy.sections[0].rows[0].code = "OLD-9";
+    expect(TaskLedgerSchema.parse(legacy)).toEqual(legacy);
+    expect(numberLedgerRows(legacy)).toEqual(legacy);
+    expect(TaskLedgerSchema.safeParse({ ...legacy, sections: [{ ...legacy.sections[0], code: "" }] }).success).toBe(false);
+    expect(TaskLedgerSchema.safeParse({ ...legacy, sections: [{ ...legacy.sections[0], code: "  " }] }).success).toBe(false);
+    expect(TaskLedgerSchema.safeParse({ ...legacy, sections: [{ ...legacy.sections[0], code: "COR", name: "  " }] }).success).toBe(false);
+    expect(TaskLedgerSchema.parse({ ...legacy, sections: [{ id: "empty", name: "Empty", code: "EMP", rows: [] }] }).sections[0].code).toBe("EMP");
+  });
+  it("places dragged rows at arbitrary positions, preserving all data and leaving the original untouched", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    ledger.sections[0].rows[0].timeline = [{ id: "note", color: "green", label: "Kept note", value: "12,000" }];
+    ledger.sections[0].rows[0].action = "Inspect";
+    ledger.sections.push({ id: "empty", name: "Empty", rows: [] });
+    const original = structuredClone(ledger);
+    const source = ledger.sections[0].id;
+    const target = ledger.sections[1].id;
+    const moved = placeLedgerRow(ledger, source, "t1", target, "t3");
+    expect(moved.sections.map((section) => section.rows.map((row) => row.id))).toEqual([["t2"], ["t1", "t3"], []]);
+    expect(moved.sections[1].rows[0]).toBe(ledger.sections[0].rows[0]);
+    const appended = placeLedgerRow(moved, target, "t1", target);
+    expect(appended.sections[1].rows.map((row) => row.id)).toEqual(["t3", "t1"]);
+    expect(placeLedgerRow(appended, target, "t1", target, "t3")).toEqual(moved);
+    const intoEmpty = placeLedgerRow(appended, target, "t1", "empty");
+    expect(intoEmpty.sections[2].rows).toEqual([ledger.sections[0].rows[0]]);
+    expect(ledger).toEqual(original);
+    expect(TaskLedgerSchema.parse(JSON.parse(JSON.stringify(intoEmpty)))).toEqual(intoEmpty);
+    expect(initialLedger("m1", [intoEmpty], tasks)).toBe(intoEmpty);
+  });
+  it("does not dirty the ledger for unchanged or invalid drag destinations", () => {
+    const ledger = initialLedger("m1", [], tasks);
+    const source = ledger.sections[0].id;
+    expect(placeLedgerRow(ledger, source, "t1", source, "t1")).toBe(ledger);
+    expect(placeLedgerRow(ledger, source, "t1", source, "t2")).toBe(ledger);
+    expect(placeLedgerRow(ledger, source, "t2", source)).toBe(ledger);
+    expect(placeLedgerRow(ledger, source, "t1", "another-item-section")).toBe(ledger);
+    expect(placeLedgerRow(ledger, source, "t1", source, "missing")).toBe(ledger);
+    expect(placeLedgerRow(ledger, "missing", "t1", source)).toBe(ledger);
+    expect(placeLedgerRow(ledger, source, "missing", source)).toBe(ledger);
+  });
   it("counts individual red entries using the same explicit and legacy colors as the timeline", () => {
     const row = initialLedger("m1", [], tasks).sections[0].rows[0];
     expect(redEntryCount(row)).toBe(0);

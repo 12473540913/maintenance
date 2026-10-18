@@ -74,6 +74,25 @@ export function moveLedgerRow(ledger: TaskLedger, sectionId: string, rowId: stri
   return { ...ledger, sections };
 }
 
+export function placeLedgerRow(
+  ledger: TaskLedger, sourceSectionId: string, rowId: string, targetSectionId: string, beforeRowId?: string
+): TaskLedger {
+  const source = ledger.sections.find((section) => section.id === sourceSectionId);
+  const target = ledger.sections.find((section) => section.id === targetSectionId);
+  const row = source?.rows.find((entry) => entry.id === rowId);
+  if (!source || !target || !row || (source === target && beforeRowId === rowId)) return ledger;
+  const targetRows = target.rows.filter((entry) => entry !== row);
+  const index = beforeRowId === undefined ? targetRows.length : targetRows.findIndex((entry) => entry.id === beforeRowId);
+  if (index < 0) return ledger;
+  targetRows.splice(index, 0, row);
+  if (source === target && targetRows.every((entry, position) => entry === source.rows[position])) return ledger;
+  return {
+    ...ledger,
+    sections: ledger.sections.map((section) => section === target ? { ...section, rows: targetRows }
+      : section === source ? { ...section, rows: section.rows.filter((entry) => entry !== row) } : section)
+  };
+}
+
 export function timelineColor(entry: TaskLedger["sections"][number]["rows"][number]["timeline"][number]): TimelineColor | undefined {
   if (entry.color) return entry.color;
   const label = entry.label.trim().toLowerCase();
