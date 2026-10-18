@@ -47,6 +47,16 @@ machinesRouter.post("/reorder", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+machinesRouter.get("/archived", async (_req, res, next) => {
+  try {
+    const rows = await (await getDb()).collection("machines")
+      .find({ userId: res.locals.user.id, archived: true })
+      .project<{ _id: { toString(): string }; code?: string; name?: string; shopId?: string }>({ _id: 1, code: 1, name: 1, shopId: 1 })
+      .toArray();
+    res.json(rows.map(({ _id, code, name, shopId }) => ({ id: _id.toString(), code: code ?? "", name, shopId: shopId ?? "shop-1" })));
+  } catch (error) { next(error); }
+});
+
 machinesRouter.patch("/:id/archive", async (req, res, next) => {
   try {
     const machines = (await getDb()).collection("machines");

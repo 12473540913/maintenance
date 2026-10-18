@@ -1,4 +1,4 @@
-import type { Completion, DueInstance, Machine, Profile, Rule, ShopSetting, TaskDefinition, TaskLedger, ValidationValue } from "@maintenance/shared";
+import type { ArchivedMachine, Completion, DueInstance, Machine, Profile, Rule, ShopSetting, TaskDefinition, TaskLedger, ValidationValue } from "@maintenance/shared";
 
 const apiBaseUrl = import.meta.env.DEV ? "/api" : normalizeApiBase(import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL) || "https://api.maintenance.lnks.info/api";
 const authBaseUrl = import.meta.env.DEV ? "" : normalizeApiBase(import.meta.env.VITE_AUTH_BASE_URL) || "https://auth.lnks.info";
@@ -40,6 +40,7 @@ async function parseError(response: Response): Promise<Error> {
 async function get<T>(path: string): Promise<T> { const response = await fetch(`${apiBaseUrl}${path}`, { credentials: "include" }); if (!response.ok) throw await parseError(response); return response.json(); }
 async function post<T>(path: string, body: unknown): Promise<T> { const response = await fetch(`${apiBaseUrl}${path}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!response.ok) throw await parseError(response); return response.json(); }
 async function remove(path: string): Promise<void> { const response = await fetch(`${apiBaseUrl}${path}`, { method: "DELETE", credentials: "include" }); if (!response.ok) throw await parseError(response); }
+async function patch(path: string): Promise<void> { const response = await fetch(`${apiBaseUrl}${path}`, { method: "PATCH", credentials: "include" }); if (!response.ok) throw await parseError(response); }
 async function put<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw await parseError(response);
@@ -62,7 +63,8 @@ export const api = {
   deleteValidationValue: (id: string) => remove(`/validation-values/${id}`),
   createMachine: (machine: Omit<Machine, "id">) => post<Machine>("/machines", machine),
   updateMachine: (id: string, machine: Omit<Machine, "id">) => put<Machine>(`/machines/${encodeURIComponent(id)}`, machine),
-  archiveMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}/archive`),
+  archivedMachines: () => get<ArchivedMachine[]>("/machines/archived"),
+  archiveMachine: (id: string) => patch(`/machines/${encodeURIComponent(id)}/archive`),
   deleteMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}`),
   reorderMachines: (machineIds: string[], shopId = "shop-1") => post<{ updated: number }>("/machines/reorder", { machineIds, shopId }),
   updateOdometer: (id: string, currentOdometer: number, currentOdometerDate: string) => fetch(`${apiBaseUrl}/machines/${id}/odometer`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentOdometer, currentOdometerDate }) })

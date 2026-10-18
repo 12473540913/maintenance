@@ -152,6 +152,7 @@ export const CompletionSchema = z.object({
 });
 
 export type Machine = z.infer<typeof MachineSchema>;
+export type ArchivedMachine = Required<Pick<Machine, "id" | "code" | "shopId">> & Pick<Machine, "name">;
 export type ShopSetting = z.infer<typeof ShopSettingSchema>;
 export function shopName(shop: Pick<ShopSetting, "id" | "name">): string {
   return shop.name?.trim() || `Shop ${Number(shop.id.slice("shop-".length))}`;

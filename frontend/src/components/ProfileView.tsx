@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { shopName, type ShopSetting } from "@maintenance/shared";
+import { useEffect, useState } from "react";
+import { shopName, type ArchivedMachine, type ShopSetting } from "@maintenance/shared";
 import { authClient, type AppAuthSession } from "../lib/authClient";
 import { api } from "../lib/api";
 
@@ -23,7 +23,20 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
   const [shopsSaved, setShopsSaved] = useState(false);
   const [editingShops, setEditingShops] = useState(false);
   const [shopDraft, setShopDraft] = useState<ShopSetting[]>([]);
-  const run = async (action: () => Promise<void>) => {
+  const [archived, setArchived] = useState<ArchivedMachine[] | null>(null);
+  const [archiveError, setArchiveError] = useState("");
+  useEffect(() => {
+    if (section !== "controls") return;
+    let active = true;
+    setArchiveError("");
+    api.archivedMachines()
+      .then((rows) => { if (active) setArchived(rows); })
+      .catch((reason) => { if (active) setArchiveError(reason instanceof Error ? reason.message : "Could not load archived items."); });
+    return () => { active = false; };
+  }, [section]);
+  const archivedShopIds = [...new Set([...shops.map(({ id }) => id), ...(archived ?? []).map(({ shopId }) => shopId)])]
+    .filter((shopId) => archived?.some((item) => item.shopId === shopId));
+  const run =  async (action: () => Promise<void>) => {
     setBusy(true); setError(""); setMessage("");
     try { await action(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Account request failed."); }
@@ -92,6 +105,26 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
               setShopDraft((current) => [...current, { id: `shop-${nextNumber}`, name: `Shop ${nextNumber}`, enabled: true }]);
             }}>+ Add shop</button>}
           </div>}
+          <section className="archive-controls" aria-labelledby="archive-heading">
+            <div className="shop-controls-heading">
+              <div><h3 id="archive-heading">Archive</h3><p className="muted">Archived items are hidden from the Shop and Tasks screens but kept in your database.</p></div>
+            </div>
+            {archiveError ? <div className="alert" role="alert">{archiveError}</div>
+              : !archived ? <p className="muted" role="status">Loading archived items...</p>
+              : archived.length === 0 ? <p className="muted">No archived items.</p>
+              : archivedShopIds.map((shopId) => {
+                const shop = shops.find(({ id }) => id === shopId) ?? { id: shopId };
+                return <div className="archive-shop" key={shopId}>
+                  <h4>{shopName(shop)}</h4>
+                  <ul className="archive-list">
+                    {archived.filter((item) => item.shopId === shopId).map((item) => <li key={item.id}>
+                      <span>{item.name || "Unnamed item"}</span>
+                      <span className="archive-code">{item.code}</span>
+                    </li>)}
+                  </ul>
+                </div>;
+              })}
+          </section>
         </section>}
         {section === "session" && <section>
           <div className="account-actions">

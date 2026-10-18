@@ -221,6 +221,9 @@ describe("user-owned API data", () => {
     expect(data.machines[0].archived).toBe(true);
     expect(await (await request("machines", owner)).json()).toEqual([]);
     expect(await (await request("dashboard", owner)).json()).toEqual([]);
+    expect(data.machines).toHaveLength(1);
+    expect(await (await request("machines/archived", other)).json()).toEqual([]);
+    expect(await (await request("machines/archived", owner)).json()).toEqual([{ id: machineId.toHexString(), code: "CAR", shopId: "shop-1" }]);
   });
 
   it("persists a complete, unique order for only the requesting user's machines", async () => {
