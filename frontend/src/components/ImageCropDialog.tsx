@@ -11,6 +11,32 @@ export function ImageCropDialog({ source, crop, onCancel, onSubmit }: {
   const dialog = useRef<HTMLDialogElement>(null);
   const [draft, setDraft] = useState(crop);
   const [ready, setReady] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  const downloadImage = async () => {
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      const response = await fetch(source);
+      if (!response.ok) throw new Error(`Server returned HTTP ${response.status}.`);
+      const blob = await response.blob();
+      if (!blob.size || !blob.type.startsWith("image/")) throw new Error("The download did not contain a valid image.");
+      const extensions: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp" };
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `image${extensions[blob.type] ?? ""}`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (reason) {
+      setDownloadError(reason instanceof Error ? `Could not download image. ${reason.message}` : "Could not download image. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     const element = dialog.current;
@@ -35,7 +61,9 @@ export function ImageCropDialog({ source, crop, onCancel, onSubmit }: {
     }}>
       <h3 id="image-crop-title">Edit image</h3>
       <ImageCropEditor source={source} crop={draft} onChange={setDraft} disabled={false} onReady={setReady} />
+      {downloadError && <div className="alert" role="alert">{downloadError}</div>}
       <div className="image-crop-dialog-actions">
+        <button type="button" className="button subtle image-crop-download" onClick={downloadImage} disabled={!ready || downloading}>{downloading ? "Downloading..." : "Download image"}</button>
         <button type="button" className="button subtle" onClick={onCancel}>Cancel</button>
         <button type="submit" className="button primary" disabled={!ready}>Submit</button>
       </div>
