@@ -156,7 +156,7 @@ export function MachineDialog({ machine, shopId, onClose, onSaved }: {
                   <span>{hasImage ? "Change image" : "Choose file"}</span>
                 </span>
               </div>
-              {hasImage && <button type="button" className="text-button image-picker-filename image-view-button" disabled={!imageSource || imageLoading} title="View full-size image" aria-label={imageFile ? `View full-size image: ${imageFile.name}` : "Image attached: view full-size image"} onClick={() => setViewImage(true)}>{imageFile?.name || "Image attached"}</button>}
+              {hasImage && <button type="button" className="text-button image-picker-filename image-view-button" disabled={!imageSource || imageLoading} title="View full-size image" aria-label={imageFile ? `View full-size image: ${imageFile.name}` : "Image attached: view full-size image"} onClick={() => setViewImage(true)}>Image attached</button>}
               {imageSource && <button type="button" className="text-button image-edit-button" disabled={imageLoading} onClick={() => setCropDraft({ source: imageSource, crop: imageCrop })}>Edit image</button>}
               {hasImage && <button type="button" className="image-picker-remove" aria-label="Remove image" title="Remove image" onClick={() => {
                 imageReadVersion.current += 1;
