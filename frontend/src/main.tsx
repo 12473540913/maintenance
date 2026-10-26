@@ -4,6 +4,7 @@ import type { Completion, Machine, ShopSetting, TaskDefinition, TaskLedger } fro
 import { api } from "./lib/api";
 import { authClient, type AppAuthSession } from "./lib/authClient";
 import { AuthFooter } from "./components/AuthFooter";
+import { NccFlagLink } from "./components/AuthHeader";
 import { AuthLayout } from "./components/AuthLayout";
 import { ProfileView } from "./components/ProfileView";
 import { ShopView } from "./components/ShopView";
@@ -84,6 +85,7 @@ function App() {
       <nav className="tabs" aria-label="Main navigation">
       {([["tasks", "Tasks"], ["shop", "Shop"], ["profile", "Profile"]] as const).map(([key, label]) => <button className={view === key ? "tab active" : "tab"} aria-current={view === key ? "page" : undefined} onClick={() => navigate(key)} key={key}>{label}</button>)}
       </nav>
+      <NccFlagLink />
     </header>
     <div className="site-content">
       {error && <div className="alert" role="alert">{error} <button className="text-button" onClick={() => setLoadAttempt(loadAttempt + 1)}>Retry</button></div>}

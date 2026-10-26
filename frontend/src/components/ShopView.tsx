@@ -1,15 +1,19 @@
 import { useRef, useState } from "react";
 import { shopName, type Machine, type ShopSetting } from "@maintenance/shared";
 import { MachineDialog } from "./MachineDialog";
+import { ImageViewDialog } from "./ImageViewDialog";
 import { imageCropStyle } from "../lib/imageCrop";
 
 export function itemName(machine: Machine): string { return machine.name || machine.code; }
 
-function ItemImage({ machine }: { machine: Machine }) {
+function ItemImage({ machine, onViewImage }: { machine: Machine; onViewImage: (source: string) => void }) {
   const [failed, setFailed] = useState(false);
   const source = machine.imageData || (machine.imageUrl && /^https?:\/\//i.test(machine.imageUrl) ? machine.imageUrl : undefined);
   return source && !failed
-    ? <div className="item-image-frame"><img src={source} alt={itemName(machine)} style={imageCropStyle(machine.imageCrop)} draggable={false} onError={() => setFailed(true)} /></div>
+    ? <button type="button" className="shop-card-image-button" aria-label={`View ${itemName(machine)} cover image`} onClick={(event) => {
+      event.stopPropagation();
+      onViewImage(source);
+    }}><div className="item-image-frame"><img src={source} alt="" style={imageCropStyle(machine.imageCrop)} draggable={false} onError={() => setFailed(true)} /></div></button>
     : <div className="item-placeholder" role="img" aria-label={failed || machine.imageUrl ? "Image unavailable" : "No image"} />;
 }
 
@@ -39,9 +43,18 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState("");
+  const [viewImage, setViewImage] = useState<string | null>(null);
   const draggedId = useRef<string | null>(null);
   const suppressClick = useRef(false);
   const orderedMachines = orderMachines(machines);
+
+  const openImage = (source: string) => {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    setViewImage(source);
+  };
 
   const moveMachine = async (targetId: string) => {
     const sourceId = draggedId.current;
@@ -69,18 +82,10 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
     {orderError && <div className="alert" role="alert">{orderError}</div>}
     <div className="shop-layout">
     <div className="shop-grid">
-      {orderedMachines.map((machine) => <button
+      {orderedMachines.map((machine) => <div
         className={`shop-card${draggingId === machine.id ? " is-dragging" : ""}`}
         key={machine.id}
         draggable={!savingOrder}
-        onClick={(event) => {
-          if (suppressClick.current) {
-            event.preventDefault();
-            suppressClick.current = false;
-            return;
-          }
-          setForm(machine);
-        }}
         onDragStart={(event) => {
           if (savingOrder || !machine.id) {
             event.preventDefault();
@@ -107,17 +112,25 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
           setDraggingId(null);
           window.setTimeout(() => { suppressClick.current = false; }, 500);
         }}
-        aria-label={`Open ${itemName(machine)}. Drag to reorder.`}
       >
+        <button type="button" className="shop-card-form-button" aria-label={`Open ${itemName(machine)} form. Drag to reorder.`} onClick={(event) => {
+          if (suppressClick.current) {
+            event.preventDefault();
+            suppressClick.current = false;
+            return;
+          }
+          setForm(machine);
+        }} />
         <h3 title={itemName(machine)}>{itemName(machine)}</h3>
-        <ItemImage key={`${machine.id}-${machine.imageData || machine.imageUrl}`} machine={machine} />
-      </button>)}
+        <ItemImage key={`${machine.id}-${machine.imageData || machine.imageUrl}`} machine={machine} onViewImage={openImage} />
+      </div>)}
       <button className="shop-card add-card" onClick={() => setForm("new")} aria-label="Add new item"><span aria-hidden="true">+</span></button>
+    </div>
     </div>
     {availableShops.length > 1 && <nav className="shop-switcher" aria-label="Choose shop">
       {availableShops.map((shop) => <button key={shop.id} className={selectedShopId === shop.id ? "selected" : ""} aria-current={selectedShopId === shop.id ? "page" : undefined} onClick={() => onSelectShop(shop.id)}>{shopName(shop)}</button>)}
     </nav>}
-    </div>
     {form && <MachineDialog machine={form === "new" ? undefined : form} shopId={selectedShopId} onClose={() => setForm(null)} onSaved={onSaved} />}
+    {viewImage && <ImageViewDialog source={viewImage} onClose={() => setViewImage(null)} />}
   </main>;
 }
