@@ -11,7 +11,7 @@ const machines: Machine[] = [
 ];
 const render = (shops: ShopSetting[]) => renderToStaticMarkup(createElement(ShopView, {
   machines, shops, selectedShopId: "shop-1", onSelectShop: () => {},
-  onSaved: async () => {}, onReorder: async () => {}
+  onSaved: async () => {}, onReorder: async () => {}, onMove: async () => {}
 }));
 
 describe("shop extras", () => {
@@ -47,7 +47,7 @@ describe("shop extras", () => {
     const empty = renderToStaticMarkup(createElement(ShopView, {
       machines: [], shops: [{ id: "shop-1", enabled: true, extras: true }],
       selectedShopId: "shop-1", onSelectShop: () => {},
-      onSaved: async () => {}, onReorder: async () => {}
+      onSaved: async () => {}, onReorder: async () => {}, onMove: async () => {}
     }));
     expect(empty).toContain("<h2>Extras</h2>");
     expect(empty).toContain('aria-label="Add new extra item"');

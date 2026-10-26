@@ -47,6 +47,10 @@ function App() {
       throw reason;
     }
   };
+  const moveMachineToShop = async (machineId: string, shopId: string) => {
+    const moved = await api.moveMachine(machineId, shopId);
+    setMachines((current) => current.map((machine) => machine.id === moved.id ? moved : machine));
+  };
   useEffect(() => {
     let disposed = false;
     const loadSession = async () => {
@@ -91,7 +95,7 @@ function App() {
       {error && <div className="alert" role="alert">{error} <button className="text-button" onClick={() => setLoadAttempt(loadAttempt + 1)}>Retry</button></div>}
       {!loaded && !error && view !== "profile" && <p className="loading" role="status">Loading your shop...</p>}
       {loaded && view === "tasks" && <TasksView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} tasks={tasks} ledgers={ledgers} completions={completions} onDirty={setDirty} onShop={() => navigate("shop")} onSaved={(saved) => setLedgers((current) => [...current.filter((ledger) => ledger.machineId !== saved.machineId), saved])} />}
-      {loaded && view === "shop" && <ShopView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} shops={shops} selectedShopId={selectedShopId} onSelectShop={setSelectedShopId} onSaved={loadData} onReorder={saveMachineOrder} />}
+      {loaded && view === "shop" && <ShopView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} shops={shops} selectedShopId={selectedShopId} onSelectShop={setSelectedShopId} onSaved={loadData} onReorder={saveMachineOrder} onMove={moveMachineToShop} />}
       {view === "profile" && <ProfileView session={session} shops={shops} shopsReady={loaded} onShopsChange={setShops} />}
     </div>
     <AuthFooter />

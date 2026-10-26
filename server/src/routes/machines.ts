@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { MachineSchema } from "@maintenance/shared";
+import { MachineSchema, ShopSettingsSchema } from "@maintenance/shared";
 import { getDb } from "../db/mongo.js";
 import { oid, serialize } from "../db/helpers.js";
 
@@ -54,6 +54,38 @@ machinesRouter.get("/archived", async (_req, res, next) => {
       .project<{ _id: { toString(): string }; code?: string; name?: string; shopId?: string }>({ _id: 1, code: 1, name: 1, shopId: 1 })
       .toArray();
     res.json(rows.map(({ _id, code, name, shopId }) => ({ id: _id.toString(), code: code ?? "", name, shopId: shopId ?? "shop-1" })));
+  } catch (error) { next(error); }
+});
+
+machinesRouter.post("/:id/move", async (req, res, next) => {
+  try {
+    const { shopId } = MachineSchema.pick({ shopId: true }).required().parse(req.body);
+    const userId: string = res.locals.user.id;
+    const db = await getDb();
+    const settings = await db.collection("userappsettings").findOne({ userId, appId: "maintenance" });
+    const shops = ShopSettingsSchema.parse(settings?.shops ?? [{ id: "shop-1", enabled: true }]);
+    const destination = shops.find((shop) => shop.id === shopId && shop.enabled);
+    if (!destination) { res.status(400).json({ error: "Choose an enabled destination shop." }); return; }
+
+    const machines = db.collection("machines");
+    const filter = { _id: oid(req.params.id), userId, archived: { $ne: true } };
+    const machine = await machines.findOne(filter);
+    if (!machine) { res.status(404).json({ error: "Item not found." }); return; }
+    if ((machine.shopId ?? "shop-1") === shopId) {
+      res.status(400).json({ error: "Item is already in this shop." }); return;
+    }
+    if (machine.extra && !destination.extras) {
+      res.status(400).json({ error: "Enable Extras in the destination shop before moving this item." }); return;
+    }
+    const moved = await machines.findOneAndUpdate(
+      { ...filter, shopId: machine.shopId ?? { $exists: false }, extra: machine.extra ?? { $exists: false } },
+      { $set: { shopId }, $unset: { shopOrder: "" } },
+      { returnDocument: "after" }
+    );
+    if (!moved) {
+      res.status(409).json({ error: "This item changed while moving it. Reload and try again." }); return;
+    }
+    res.json(serialize(moved));
   } catch (error) { next(error); }
 });
 

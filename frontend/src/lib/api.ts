@@ -69,5 +69,6 @@ export const api = {
   archiveMachine: (id: string) => patch(`/machines/${encodeURIComponent(id)}/archive`),
   deleteMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}`),
   reorderMachines: (machineIds: string[], shopId = "shop-1") => post<{ updated: number }>("/machines/reorder", { machineIds, shopId }),
+  moveMachine: (id: string, shopId: string) => post<Machine>(`/machines/${encodeURIComponent(id)}/move`, { shopId }),
   updateOdometer: (id: string, currentOdometer: number, currentOdometerDate: string) => fetch(`${apiBaseUrl}/machines/${id}/odometer`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentOdometer, currentOdometerDate }) })
 };

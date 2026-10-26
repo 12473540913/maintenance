@@ -33,21 +33,24 @@ function orderMachines(machines: Machine[]): Machine[] {
     .map(({ machine }) => machine);
 }
 
-export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSaved, onReorder }: {
+export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSaved, onReorder, onMove }: {
   machines: Machine[];
   shops: ShopSetting[];
   selectedShopId: string;
   onSelectShop: (shopId: string) => void;
   onSaved: () => Promise<void>;
   onReorder: (machineIds: string[], shopId: string) => Promise<void>;
+  onMove: (machineId: string, shopId: string) => Promise<void>;
 }) {
   const [form, setForm] = useState<Machine | "new" | "new-extra" | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState("");
+  const [dropShopId, setDropShopId] = useState<string | null>(null);
   const [viewImage, setViewImage] = useState<GalleryEntry[] | null>(null);
   const draggedId = useRef<string | null>(null);
   const suppressClick = useRef(false);
+  const saving = useRef(false);
   const orderedMachines = orderMachines(machines);
   const extrasEnabled = shops.find(({ id }) => id === selectedShopId)?.extras ?? false;
 
@@ -60,6 +63,7 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
   };
 
   const moveMachine = async (targetId: string) => {
+    if (saving.current) return;
     const sourceId = draggedId.current;
     draggedId.current = null;
     setDraggingId(null);
@@ -70,6 +74,7 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
     if (sourceIndex < 0 || targetIndex < 0) return;
     if (Boolean(next[sourceIndex].extra) !== Boolean(next[targetIndex].extra)) return;
     next.splice(targetIndex, 0, ...next.splice(sourceIndex, 1));
+    saving.current = true;
     setSavingOrder(true);
     setOrderError("");
     try {
@@ -77,6 +82,32 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
     } catch (reason) {
       setOrderError(reason instanceof Error ? reason.message : "Could not save machine order.");
     } finally {
+      saving.current = false;
+      setSavingOrder(false);
+    }
+  };
+
+  const canDropInShop = (shop: ShopSetting) => {
+    const machine = orderedMachines.find(({ id }) => id === draggedId.current);
+    return !saving.current && Boolean(machine) && shop.enabled && shop.id !== selectedShopId && (!machine?.extra || shop.extras === true);
+  };
+  const moveToShop = async (shop: ShopSetting) => {
+    if (!canDropInShop(shop)) return;
+    const machine = orderedMachines.find(({ id }) => id === draggedId.current);
+    if (!machine?.id) return;
+    const machineId = machine.id;
+    draggedId.current = null;
+    setDraggingId(null);
+    setDropShopId(null);
+    saving.current = true;
+    setSavingOrder(true);
+    setOrderError("");
+    try {
+      await onMove(machineId, shop.id);
+    } catch (reason) {
+      setOrderError(reason instanceof Error ? reason.message : "Could not move item to another shop.");
+    } finally {
+      saving.current = false;
       setSavingOrder(false);
     }
   };
@@ -93,13 +124,14 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
         key={machine.id}
         draggable={!savingOrder}
         onDragStart={(event) => {
-          if (savingOrder || !machine.id) {
+          if (saving.current || !machine.id) {
             event.preventDefault();
             return;
           }
           draggedId.current = machine.id;
           suppressClick.current = true;
           setDraggingId(machine.id);
+          setOrderError("");
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("text/plain", machine.id);
         }}
@@ -116,10 +148,11 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
         onDragEnd={() => {
           draggedId.current = null;
           setDraggingId(null);
+          setDropShopId(null);
           window.setTimeout(() => { suppressClick.current = false; }, 500);
         }}
       >
-        <button type="button" className="shop-card-form-button" aria-label={`Open ${itemName(machine)} form. Drag to reorder.`} onClick={(event) => {
+        <button type="button" className="shop-card-form-button" aria-label={`Open ${itemName(machine)} form. Drag to reorder or move to another shop.`} onClick={(event) => {
           if (suppressClick.current) {
             event.preventDefault();
             suppressClick.current = false;
@@ -135,7 +168,31 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
     </section>)}
     </div>
     {availableShops.length > 1 && <nav className="shop-switcher" aria-label="Choose shop">
-      {availableShops.map((shop) => <button key={shop.id} className={selectedShopId === shop.id ? "selected" : ""} aria-current={selectedShopId === shop.id ? "page" : undefined} onClick={() => onSelectShop(shop.id)}>{shopName(shop)}</button>)}
+      {availableShops.map((shop) => <button
+        key={shop.id}
+        className={`${selectedShopId === shop.id ? "selected" : ""}${dropShopId === shop.id ? " is-drop-target" : ""}`}
+        aria-current={selectedShopId === shop.id ? "page" : undefined}
+        title={draggingId && selectedShopId !== shop.id
+          ? canDropInShop(shop) ? `Drop to move item to ${shopName(shop)}` : "Enable Extras in this shop to move an Extra here."
+          : undefined}
+        onDragEnter={(event) => {
+          if (!canDropInShop(shop)) return;
+          event.preventDefault();
+          setDropShopId(shop.id);
+        }}
+        onDragOver={(event) => {
+          if (!canDropInShop(shop)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setDropShopId(shop.id);
+        }}
+        onDragLeave={() => setDropShopId((current) => current === shop.id ? null : current)}
+        onDrop={(event) => {
+          event.preventDefault();
+          void moveToShop(shop);
+        }}
+        onClick={() => { if (!saving.current) onSelectShop(shop.id); }}
+      >{shopName(shop)}</button>)}
     </nav>}
     {form && <MachineDialog machine={typeof form === "string" ? undefined : form} shopId={selectedShopId} extra={form === "new-extra"} onClose={() => setForm(null)} onSaved={onSaved} />}
     {viewImage && <ImageViewDialog images={viewImage} onClose={() => setViewImage(null)} />}
