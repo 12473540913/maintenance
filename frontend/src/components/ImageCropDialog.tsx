@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ImageCrop } from "@maintenance/shared";
 import { ImageCropEditor } from "./ImageCropEditor";
+import { api } from "../lib/api";
 
 export function ImageCropDialog({ source, crop, onCancel, onSubmit }: {
   source: string;
@@ -18,7 +19,7 @@ export function ImageCropDialog({ source, crop, onCancel, onSubmit }: {
     setDownloading(true);
     setDownloadError("");
     try {
-      const response = await fetch(source);
+      const response = await fetch(source, { credentials: source.startsWith(api.imageUrl("")) ? "include" : "same-origin" });
       if (!response.ok) throw new Error(`Server returned HTTP ${response.status}.`);
       const blob = await response.blob();
       if (!blob.size || !blob.type.startsWith("image/")) throw new Error("The download did not contain a valid image.");

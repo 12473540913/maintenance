@@ -48,6 +48,17 @@ for (const collectionName of ["machines", "rules", "taskDefinitions", "completio
         const body = schemas[collectionName].parse(req.body);
         const userId: string = res.locals.user.id;
         const db = await getDb();
+        const gallery = collectionName === "machines" && "gallery" in body ? body.gallery : undefined;
+        const imageIds = gallery?.flatMap((image) => image.imageId ? [oid(image.imageId)] : []) ?? [];
+        if (imageIds.length) {
+          const count = await db.collection("images").countDocuments({ _id: { $in: imageIds }, userId });
+          if (count !== imageIds.length) {
+            res.status(400).json({ error: "A gallery image is unavailable. Upload it again before saving." });
+            return;
+          }
+        }
+        // Explicit galleries supersede legacy single-image fields, including an empty gallery.
+        const savedBody = gallery ? { ...body, imageData: "", imageUrl: "" } : body;
         const references = "machineId" in body
           ? [["machines", body.machineId], ["rules", body.ruleId]]
           : "taskDefinitionId" in body ? [["taskDefinitions", body.taskDefinitionId]] : [];
@@ -58,13 +69,15 @@ for (const collectionName of ["machines", "rules", "taskDefinitions", "completio
           }
         }
         if (method === "post") {
-          const result = await db.collection(collectionName).insertOne({ ...body, userId });
-          res.status(201).json({ ...body, id: result.insertedId.toString() });
+          const result = await db.collection(collectionName).insertOne({ ...savedBody, userId });
+          if (imageIds.length) await db.collection("images").updateMany({ _id: { $in: imageIds }, userId }, { $unset: { expiresAt: "" } });
+          res.status(201).json({ ...savedBody, id: result.insertedId.toString() });
         } else {
           if (!("id" in req.params)) throw new Error("Missing item id.");
-          const result = await db.collection(collectionName).updateOne({ _id: oid(req.params.id), userId }, { $set: body });
+          const result = await db.collection(collectionName).updateOne({ _id: oid(req.params.id), userId }, { $set: savedBody });
           if (!result.matchedCount) { res.status(404).json({ error: "Item not found." }); return; }
-          res.json({ ...body, id: req.params.id });
+          if (imageIds.length) await db.collection("images").updateMany({ _id: { $in: imageIds }, userId }, { $unset: { expiresAt: "" } });
+          res.json({ ...savedBody, id: req.params.id });
         }
       } catch (error) { next(error); }
     });

@@ -19,6 +19,18 @@ export const ImageCropSchema = z.object({
 });
 export type ImageCrop = z.infer<typeof ImageCropSchema>;
 
+export const GalleryImageSchema = z.object({
+  imageId: z.string().regex(/^[\da-f]{24}$/i).optional(),
+  url: z.string().url().regex(/^https?:\/\//i).optional(),
+  caption: z.string().max(2000).optional(),
+  crop: ImageCropSchema.optional()
+}).refine((image) => Boolean(image.imageId) !== Boolean(image.url), "Provide one image reference.");
+export type GalleryImage = z.infer<typeof GalleryImageSchema>;
+export const GallerySchema = z.array(GalleryImageSchema).refine(
+  (images) => new Set(images.map((image) => image.imageId ?? image.url)).size === images.length,
+  "Gallery images must be unique."
+);
+
 export const MachineSchema = z.object({
   id: z.string().optional(),
   shopId: z.string().regex(/^shop-\d+$/).optional(),
@@ -26,10 +38,12 @@ export const MachineSchema = z.object({
   type: z.string(),
   name: z.string().optional(),
   shopOrder: z.number().int().nonnegative().optional(),
+  extra: z.boolean().optional(),
   archived: z.boolean().optional(),
   imageUrl: z.string().optional(),
   imageData: z.union([MachineImageSchema, z.literal("")]).optional(),
   imageCrop: ImageCropSchema.optional(),
+  gallery: GallerySchema.optional(),
   year: z.union([z.string(), z.number().int().min(1800).max(3000)]).optional(),
   make: z.string().optional(),
   model: z.string().optional(),
@@ -49,7 +63,8 @@ export const MachineSchema = z.object({
 export const ShopSettingSchema = z.object({
   id: z.string().regex(/^shop-\d+$/),
   name: z.string().trim().min(1).max(60).optional(),
-  enabled: z.boolean()
+  enabled: z.boolean(),
+  extras: z.boolean().optional()
 });
 export const ShopSettingsSchema = z.array(ShopSettingSchema)
   .min(1)

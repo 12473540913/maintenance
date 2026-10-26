@@ -144,6 +144,8 @@ footer { text-align: center; padding: 22px; font-size: 11px; color: var(--muted)
 .shop-grid { --shop-card-width: calc((100cqw - 66px) / 4); display: grid; grid-template-columns: repeat(auto-fill, min(100%, var(--shop-card-width))); grid-auto-rows: 1fr; gap: 22px; }
 .shop-page { --shop-selector-width: 64px; --shop-selector-edge: 16px; --shop-selector-gap: 16px; }
 .shop-layout { container-type: inline-size; }
+.shop-extras { margin-top: 48px; }
+.shop-extras h2 { margin: 0 0 24px; text-align: center; font-size: 22px; font-weight: 600; }
 .shop-page:has(.shop-switcher) .shop-grid { padding-right: max(0px, calc(var(--shop-selector-width) + var(--shop-selector-edge) + var(--shop-selector-gap) - (100vw - 100cqw) / 2)); }
 .shop-switcher { position: fixed; z-index: 5; top: 50%; right: var(--shop-selector-edge); transform: translateY(-50%); display: grid; gap: 8px; width: var(--shop-selector-width); max-height: calc(100dvh - 32px); overflow-y: auto; }
 .shop-switcher button { min-width: 0; padding: 10px 8px; border: 1px solid var(--line); border-radius: 4px; background: #eee8de; color: var(--muted); font-size: 12px; text-align: center; overflow-wrap: anywhere; }
@@ -231,27 +233,40 @@ footer { text-align: center; padding: 22px; font-size: 11px; color: var(--muted)
 label { display: grid; gap: 8px; font-size: 12px; color: var(--muted); }
 label input { min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); }
 .image-field { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.gallery-field-label { font-size: 12px; color: var(--muted); }
 .form-grid label input[type="text"], .image-picker { height: 40px; }
 .image-picker { display: flex; min-width: 0; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); transition: border-color .15s, background-color .15s; }
-.image-picker:has(input:hover:not(:disabled)) { border-color: var(--metal); background: var(--paper); }
-.image-picker:has(input:focus-visible) { outline: 2px solid var(--metal); outline-offset: 3px; }
-.image-picker-select { position: relative; flex: 1; min-width: 0; }
-.image-picker-select input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.image-picker-select input:disabled { cursor: not-allowed; }
-.image-picker-content { display: flex; align-items: center; gap: 8px; height: 100%; padding: 0 12px; font-size: 12px; color: var(--ink); pointer-events: none; }
-.image-picker-content > svg, .image-picker-content > span:first-of-type { flex-shrink: 0; }
-.image-picker-content > svg { color: var(--metal); }
-.image-picker-filename { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.image-picker-remove { display: flex; align-items: center; padding: 0 12px; border: 0; background: transparent; color: var(--muted); border-radius: 0 3px 3px 0; }
-.image-picker-remove:hover:not(:disabled) { color: var(--danger); background: var(--danger-soft); }
-.image-picker:has(input:disabled) { opacity: .5; }
-.image-edit-button { flex: 0 0 auto; align-self: stretch; padding: 0 8px; white-space: nowrap; }
-.image-view-button { min-width: 0; padding: 0 8px; font-size: 12px; }
-.image-view-dialog { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 64px 24px 24px; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; color: white; background: transparent; }
+.gallery-edit-button { width: 100%; padding: 0 12px; text-align: left; }
+.gallery-dialog { width: min(960px, calc(100vw - 32px)); }
+.gallery-header, .gallery-card-header, .gallery-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gallery-header h3 { margin: 0; font-size: 18px; }
+.gallery-card.gallery-upload { position: relative; display: grid; place-items: center; min-height: 240px; overflow: hidden; border-style: dashed; background: transparent; }
+.gallery-upload > span:first-child { font-size: 60px; font-weight: 300; line-height: 1; }
+.gallery-upload-status { position: absolute; bottom: 24px; font-size: 12px; }
+.gallery-upload:hover { border-color: var(--metal); background: var(--sand-soft); }
+.gallery-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.gallery-upload:has(input:focus-visible) { outline: 2px solid var(--metal); outline-offset: 3px; }
+.gallery-upload:has(input:disabled) { opacity: .5; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 16px; margin: 20px 0; }
+.gallery-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.gallery-card.is-dragging { opacity: .5; }
+.gallery-card.is-drop-target { outline: 2px solid var(--metal-dark); outline-offset: 2px; }
+.gallery-card-header { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.gallery-drag-handle { touch-action: none; cursor: grab; background: transparent; border: 0; color: var(--metal-dark); padding: 6px 10px; }
+.gallery-drag-handle:active { cursor: grabbing; }
+.gallery-thumbnail { display: block; width: 100%; padding: 0; border: 0; background: transparent; margin-bottom: 12px; }
+.gallery-card textarea { resize: vertical; width: 100%; min-width: 0; padding: 8px; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 3px; }
+.gallery-card-actions { margin-top: 12px; }
+.image-view-dialog { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 56px clamp(44px, 6vw, 80px) 24px; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; color: white; background: transparent; }
 .image-view-dialog[open] { display: flex; flex-direction: column; }
 .image-view-dialog::backdrop { background: #000c; }
 .image-view-close { position: absolute; top: 12px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; background: transparent; color: white; font-size: 24px; }
 .image-view-status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.image-view-heading { flex-shrink: 0; max-height: 25%; overflow: auto; text-align: center; padding-bottom: 12px; }
+.image-view-caption { color: #ccc; font-size: 14px; font-weight: 400; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 6px; }
+.image-view-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 64px; padding: 0; border: 0; background: #0004; border-radius: 4px; color: white; font-size: 36px; }
+.image-view-arrow.previous { left: 4px; }
+.image-view-arrow.next { right: 4px; }
 .image-view-content { min-height: 0; min-width: 0; overflow: hidden; flex: 1; }
 .image-view-content img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .image-crop-dialog { width: min(560px, calc(100vw - 32px)); }
@@ -281,10 +296,11 @@ label input { min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid v
 .shop-controls-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
 .shop-controls-heading h3 { text-align: left; margin: 0 0 5px; }
 .shop-controls-heading p { margin: 0; }
-.shop-control-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.shop-control-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .shop-control-list { display: grid; border-top: 1px solid var(--line); }
 .shop-control-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .shop-control-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.shop-control-toggles { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 18px; flex-shrink: 0; }
 .shop-delete-button { flex: 0 0 22px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #999; font-size: 18px; line-height: 1; }
 .shop-delete-button:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 .shop-delete-button:disabled { opacity: .4; }

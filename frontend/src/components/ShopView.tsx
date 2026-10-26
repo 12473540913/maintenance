@@ -3,17 +3,19 @@ import { shopName, type Machine, type ShopSetting } from "@maintenance/shared";
 import { MachineDialog } from "./MachineDialog";
 import { ImageViewDialog } from "./ImageViewDialog";
 import { imageCropStyle } from "../lib/imageCrop";
+import { machineGallery, type GalleryEntry } from "../lib/gallery";
 
 export function itemName(machine: Machine): string { return machine.name || machine.code; }
 
-function ItemImage({ machine, onViewImage }: { machine: Machine; onViewImage: (source: string) => void }) {
+function ItemImage({ machine, onViewImage }: { machine: Machine; onViewImage: (images: GalleryEntry[]) => void }) {
   const [failed, setFailed] = useState(false);
-  const source = machine.imageData || (machine.imageUrl && /^https?:\/\//i.test(machine.imageUrl) ? machine.imageUrl : undefined);
+  const images = machineGallery(machine);
+  const source = images[0]?.source;
   return source && !failed
     ? <button type="button" className="shop-card-image-button" aria-label={`View ${itemName(machine)} cover image`} onClick={(event) => {
       event.stopPropagation();
-      onViewImage(source);
-    }}><div className="item-image-frame"><img src={source} alt="" style={imageCropStyle(machine.imageCrop)} draggable={false} onError={() => setFailed(true)} /></div></button>
+      onViewImage(images);
+    }}><div className="item-image-frame"><img src={source} alt="" style={imageCropStyle(images[0].crop)} draggable={false} onError={() => setFailed(true)} /></div></button>
     : <div className="item-placeholder" role="img" aria-label={failed || machine.imageUrl ? "Image unavailable" : "No image"} />;
 }
 
@@ -39,21 +41,22 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
   onSaved: () => Promise<void>;
   onReorder: (machineIds: string[], shopId: string) => Promise<void>;
 }) {
-  const [form, setForm] = useState<Machine | "new" | null>(null);
+  const [form, setForm] = useState<Machine | "new" | "new-extra" | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState("");
-  const [viewImage, setViewImage] = useState<string | null>(null);
+  const [viewImage, setViewImage] = useState<GalleryEntry[] | null>(null);
   const draggedId = useRef<string | null>(null);
   const suppressClick = useRef(false);
   const orderedMachines = orderMachines(machines);
+  const extrasEnabled = shops.find(({ id }) => id === selectedShopId)?.extras ?? false;
 
-  const openImage = (source: string) => {
+  const openImage = (images: GalleryEntry[]) => {
     if (suppressClick.current) {
       suppressClick.current = false;
       return;
     }
-    setViewImage(source);
+    setViewImage(images);
   };
 
   const moveMachine = async (targetId: string) => {
@@ -65,6 +68,7 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
     const sourceIndex = next.findIndex(({ id }) => id === sourceId);
     const targetIndex = next.findIndex(({ id }) => id === targetId);
     if (sourceIndex < 0 || targetIndex < 0) return;
+    if (Boolean(next[sourceIndex].extra) !== Boolean(next[targetIndex].extra)) return;
     next.splice(targetIndex, 0, ...next.splice(sourceIndex, 1));
     setSavingOrder(true);
     setOrderError("");
@@ -81,8 +85,10 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
   return <main className="shop-page">
     {orderError && <div className="alert" role="alert">{orderError}</div>}
     <div className="shop-layout">
+    {[false, ...(extrasEnabled ? [true] : [])].map((extra) => <section className={extra ? "shop-extras" : undefined} key={String(extra)} aria-label={extra ? "Extras" : "Main items"}>
+    {extra && <h2>Extras</h2>}
     <div className="shop-grid">
-      {orderedMachines.map((machine) => <div
+      {orderedMachines.filter((machine) => Boolean(machine.extra) === extra).map((machine) => <div
         className={`shop-card${draggingId === machine.id ? " is-dragging" : ""}`}
         key={machine.id}
         draggable={!savingOrder}
@@ -98,7 +104,7 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
           event.dataTransfer.setData("text/plain", machine.id);
         }}
         onDragOver={(event) => {
-          if (draggedId.current) {
+          if (draggedId.current && Boolean(orderedMachines.find(({ id }) => id === draggedId.current)?.extra) === extra) {
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
           }
@@ -122,15 +128,16 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
           setForm(machine);
         }} />
         <h3 title={itemName(machine)}>{itemName(machine)}</h3>
-        <ItemImage key={`${machine.id}-${machine.imageData || machine.imageUrl}`} machine={machine} onViewImage={openImage} />
+        <ItemImage key={`${machine.id}-${machineGallery(machine)[0]?.source}`} machine={machine} onViewImage={openImage} />
       </div>)}
-      <button className="shop-card add-card" onClick={() => setForm("new")} aria-label="Add new item"><span aria-hidden="true">+</span></button>
+      <button className="shop-card add-card" onClick={() => setForm(extra ? "new-extra" : "new")} aria-label={extra ? "Add new extra item" : "Add new item"}><span aria-hidden="true">+</span></button>
     </div>
+    </section>)}
     </div>
     {availableShops.length > 1 && <nav className="shop-switcher" aria-label="Choose shop">
       {availableShops.map((shop) => <button key={shop.id} className={selectedShopId === shop.id ? "selected" : ""} aria-current={selectedShopId === shop.id ? "page" : undefined} onClick={() => onSelectShop(shop.id)}>{shopName(shop)}</button>)}
     </nav>}
-    {form && <MachineDialog machine={form === "new" ? undefined : form} shopId={selectedShopId} onClose={() => setForm(null)} onSaved={onSaved} />}
-    {viewImage && <ImageViewDialog source={viewImage} onClose={() => setViewImage(null)} />}
+    {form && <MachineDialog machine={typeof form === "string" ? undefined : form} shopId={selectedShopId} extra={form === "new-extra"} onClose={() => setForm(null)} onSaved={onSaved} />}
+    {viewImage && <ImageViewDialog images={viewImage} onClose={() => setViewImage(null)} />}
   </main>;
 }

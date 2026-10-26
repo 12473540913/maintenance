@@ -69,7 +69,7 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
         {section === "identity" && <section><dl className="identity-list"><div><dt>Email</dt><dd>{session.email}</dd></div><div><dt>Email verified</dt><dd>{session.emailVerified ? "Yes" : "No"}</dd></div></dl></section>}
         {section === "controls" && <section className="shop-controls">
           <div className="shop-controls-heading">
-            <div><h3>Controls</h3><p className="muted">Enable shops to make them available from the Shop screen.</p></div>
+            <div><h3>Controls</h3><p className="muted">Enable shops to make them available from the Shop screen.<br />Extras adds a separate section for non-core items.</p></div>
             {!editingShops
               ? <button className="button primary" disabled={!shopsReady} onClick={() => { setShopDraft(shops.map((shop) => ({ ...shop, name: shop.name ?? shopName(shop) }))); setEditingShops(true); }}>Edit</button>
               : <div className="shop-control-actions">
@@ -92,12 +92,20 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
                     ? <input className="shop-name-input" aria-label={`Name for ${shopName(shop)}`} maxLength={60} required value={shop.name ?? shopName(shop)} onChange={(event) => setShopDraft((current) => current.map((entry) => entry.id === id ? { ...entry, name: event.target.value } : entry))} />
                     : <span>{shopName(shop)}</span>}
                 </div>
-                <label className="shop-toggle">
-                  <input type="checkbox" checked={enabled} disabled={!editingShops || savingShops || (enabled && enabledCount === 1)} onChange={(event) => {
-                    setShopDraft((current) => current.map((entry) => entry.id === id ? { ...entry, enabled: event.target.checked } : entry));
-                  }} />
-                  <span>{enabled ? "Enabled" : "Disabled"}</span>
-                </label>
+                <div className="shop-control-toggles">
+                  <label className="shop-toggle">
+                    <input type="checkbox" aria-label={`Extras for ${shopName(shop)}`} checked={shop.extras ?? false} disabled={!editingShops || savingShops} onChange={(event) => {
+                      setShopDraft((current) => current.map((entry) => entry.id === id ? { ...entry, extras: event.target.checked } : entry));
+                    }} />
+                    <span>Extras</span>
+                  </label>
+                  <label className="shop-toggle">
+                    <input type="checkbox" checked={enabled} disabled={!editingShops || savingShops || (enabled && enabledCount === 1)} onChange={(event) => {
+                      setShopDraft((current) => current.map((entry) => entry.id === id ? { ...entry, enabled: event.target.checked } : entry));
+                    }} />
+                    <span>{enabled ? "Enabled" : "Disabled"}</span>
+                  </label>
+                </div>
               </div>;
             })}
             {editingShops && <button className="button subtle shop-add-footer" disabled={savingShops} aria-label="Add shop" onClick={() => {

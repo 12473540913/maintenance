@@ -279,6 +279,26 @@ describe("user-owned API data", () => {
     expect(data.taskLedgers.some((row) => row.machineId === secondMachineId.toHexString())).toBe(false);
   });
 
+  it("persists extras per shop and preserves extra items when the section is disabled", async () => {
+    const shops = [
+      { id: "shop-1", enabled: true, extras: true },
+      { id: "shop-2", enabled: true, extras: false }
+    ];
+    expect((await request("shops", owner, "PUT", shops)).status).toBe(200);
+    expect(await (await request("shops", owner)).json()).toEqual(shops);
+    const created = await request("machines", owner, "POST", { code: "TOOLS", type: "Tool", shopId: "shop-1", extra: true });
+    expect(created.status).toBe(201);
+    const item = await created.json();
+    expect(item.extra).toBe(true);
+    expect((await request(`machines/${item.id}`, owner, "PUT", { code: "TOOLS", type: "Tool", extra: true, name: "Extras" })).status).toBe(200);
+    expect((await request("shops", owner, "PUT", shops.map((shop) => ({ ...shop, extras: false })))).status).toBe(200);
+    const rows = await (await request("machines", owner)).json();
+    expect(rows.find((row: { id: string }) => row.id === item.id)).toMatchObject({ extra: true, name: "Extras" });
+    expect((await request("machines/reorder", owner, "POST", { machineIds: [item.id, machineId.toHexString()] })).status).toBe(200);
+    expect((await request(`machines/${item.id}`, owner, "PUT", { code: "TOOLS", type: "Tool", extra: false })).status).toBe(200);
+    expect(data.machines.find((row) => row._id.toString() === item.id)?.extra).toBe(false);
+  });
+
   it("hides old foreign-machine ledgers and unowned legacy data", async () => {
     data.taskLedgers.push({ _id: new ObjectId(), userId: other, machineId: machineId.toHexString(), sections: [] });
     data.machines.push({ _id: new ObjectId(), code: "LEGACY", type: "Car" });

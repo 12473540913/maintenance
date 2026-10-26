@@ -47,6 +47,8 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return response.json();
 }
 export const api = {
+  uploadImage: (data: string) => post<{ id: string }>("/images", { data }),
+  imageUrl: (id: string) => `${apiBaseUrl}/images/${encodeURIComponent(id)}`,
   tasks: () => get<TaskDefinition[]>("/taskDefinitions"),
   completions: () => get<Completion[]>("/completions"),
   ledgers: () => get<TaskLedger[]>("/task-ledgers"),
