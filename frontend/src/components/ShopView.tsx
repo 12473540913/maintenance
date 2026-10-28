@@ -194,7 +194,7 @@ export function ShopView({ machines, shops, selectedShopId, onSelectShop, onSave
         onClick={() => { if (!saving.current) onSelectShop(shop.id); }}
       >{shopName(shop)}</button>)}
     </nav>}
-    {form && <MachineDialog machine={typeof form === "string" ? undefined : form} shopId={selectedShopId} extra={form === "new-extra"} onClose={() => setForm(null)} onSaved={onSaved} />}
+    {form && <MachineDialog machine={typeof form === "string" ? undefined : form} shopId={selectedShopId} extra={form === "new-extra"} extrasEnabled={extrasEnabled} onClose={() => setForm(null)} onSaved={onSaved} />}
     {viewImage && <ImageViewDialog images={viewImage} onClose={() => setViewImage(null)} />}
   </main>;
 }

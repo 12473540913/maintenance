@@ -13,17 +13,18 @@ const fields = [
   ["licenseId", "License ID"]
 ] as const;
 
-export function MachineDialog({ machine, shopId, extra = false, onClose, onSaved }: {
+export function MachineDialog({ machine, shopId, extra = false, extrasEnabled = false, onClose, onSaved }: {
   machine?: Machine;
   shopId: string;
   extra?: boolean;
+  extrasEnabled?: boolean;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [values, setValues] = useState(() => Object.fromEntries(fields.map(([key]) => [key, String(machine?.[key] ?? "")])));
   const [saving, setSaving] = useState(false);
-  const [itemAction, setItemAction] = useState<"archive" | "delete" | null>(null);
+  const [itemAction, setItemAction] = useState<"archive" | "delete" | "section" | null>(null);
   const [error, setError] = useState("");
   const [gallery, setGallery] = useState(() => machineGallery(machine));
   const [editGallery, setEditGallery] = useState(false);
@@ -45,6 +46,23 @@ export function MachineDialog({ machine, shopId, extra = false, onClose, onSaved
       onClose();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not archive item.");
+    } finally {
+      setItemAction(null);
+      setSaving(false);
+    }
+  };
+
+  const toggleExtra = async () => {
+    if (!machine?.id) return;
+    setSaving(true);
+    setItemAction("section");
+    setError("");
+    try {
+      await api.updateMachine(machine.id, { code: machine.code, type: machine.type, extra: !machine.extra });
+      await onSaved();
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : `Could not make item ${machine.extra ? "core" : "extra"}.`);
     } finally {
       setItemAction(null);
       setSaving(false);
@@ -106,6 +124,9 @@ export function MachineDialog({ machine, shopId, extra = false, onClose, onSaved
         {machine?.id && <div className="item-management-actions">
           <button type="button" className="button danger-button" onClick={archiveMachine} disabled={saving}>{itemAction === "archive" ? "Archiving..." : "Archive item"}</button>
           <button type="button" className="button danger-button" onClick={deleteMachine} disabled={saving}>{itemAction === "delete" ? "Deleting..." : "Delete item"}</button>
+          {(machine.extra || extrasEnabled) && <button type="button" className="button subtle" onClick={toggleExtra} disabled={saving}>
+            {itemAction === "section" ? "Saving..." : machine.extra ? "Make Core" : "Make Extra"}
+          </button>}
         </div>}
         <div className="item-save-actions">
           <button type="button" className="button subtle" onClick={onClose} disabled={saving}>Cancel</button>
