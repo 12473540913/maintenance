@@ -6,7 +6,7 @@ import { machinesRouter } from "./machines.js";
 
 const db = vi.hoisted(() => ({
   settings: { findOne: vi.fn() },
-  machines: { findOne: vi.fn(), findOneAndUpdate: vi.fn() }
+  machines: { findOne: vi.fn(), findOneAndUpdate: vi.fn(), updateOne: vi.fn() }
 }));
 vi.mock("../db/mongo.js", () => ({
   getDb: async () => ({
@@ -37,6 +37,7 @@ beforeAll(async () => {
   await new Promise<void>((resolve, reject) => {
     server = app.listen(0, "127.0.0.1", (error) => error ? reject(error) : resolve());
   });
+
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Missing test server address.");
   baseUrl = `http://127.0.0.1:${address.port}`;
@@ -54,6 +55,40 @@ beforeEach(() => {
   ] });
   db.machines.findOne.mockResolvedValue(machine);
   db.machines.findOneAndUpdate.mockResolvedValue({ ...machine, shopId: "shop-2", shopOrder: undefined });
+});
+
+describe("reinstating archived machines", () => {
+  const reinstate = (machineId = id) => fetch(`${baseUrl}/machines/${machineId}/reinstate`, { method: "PATCH" });
+
+  it("only clears the archive flag on an owned archived item", async () => {
+    db.machines.updateOne.mockResolvedValue({ matchedCount: 1 });
+    const response = await reinstate();
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+    expect(db.machines.updateOne).toHaveBeenCalledWith(
+      { _id: new ObjectId(id), userId: "owner", archived: true },
+      { $set: { archived: false } }
+    );
+  });
+
+  it("reports missing, active, or other users' items instead of claiming success", async () => {
+    db.machines.updateOne.mockResolvedValue({ matchedCount: 0 });
+    const response = await reinstate();
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Archived item not found." });
+  });
+
+  it("rejects malformed IDs before writing", async () => {
+    expect((await reinstate("invalid")).status).toBe(400);
+    expect(db.machines.updateOne).not.toHaveBeenCalled();
+  });
+
+  it("surfaces database failures", async () => {
+    db.machines.updateOne.mockRejectedValue(new Error("Database unavailable"));
+    const response = await reinstate();
+    expect(response.ok).toBe(false);
+    expect(await response.json()).toEqual({ error: "Database unavailable" });
+  });
 });
 
 const move = (shopId: string) => fetch(`${baseUrl}/machines/${id}/move`, {

@@ -96,7 +96,7 @@ function App() {
       {!loaded && !error && view !== "profile" && <p className="loading" role="status">Loading your shop...</p>}
       {loaded && view === "tasks" && <TasksView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} tasks={tasks} ledgers={ledgers} completions={completions} onDirty={setDirty} onShop={() => navigate("shop")} onSaved={(saved) => setLedgers((current) => [...current.filter((ledger) => ledger.machineId !== saved.machineId), saved])} />}
       {loaded && view === "shop" && <ShopView machines={machines.filter((machine) => (machine.shopId ?? "shop-1") === selectedShopId)} shops={shops} selectedShopId={selectedShopId} onSelectShop={setSelectedShopId} onSaved={loadData} onReorder={saveMachineOrder} onMove={moveMachineToShop} />}
-      {view === "profile" && <ProfileView session={session} shops={shops} shopsReady={loaded} onShopsChange={setShops} />}
+      {view === "profile" && <ProfileView session={session} shops={shops} shopsReady={loaded} onShopsChange={setShops} onItemsChange={loadData} />}
     </div>
     <AuthFooter />
   </div>;

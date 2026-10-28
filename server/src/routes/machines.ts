@@ -101,6 +101,17 @@ machinesRouter.patch("/:id/archive", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+machinesRouter.patch("/:id/reinstate", async (req, res, next) => {
+  try {
+    const result = await (await getDb()).collection("machines").updateOne(
+      { _id: oid(req.params.id), userId: res.locals.user.id, archived: true },
+      { $set: { archived: false } }
+    );
+    if (!result.matchedCount) { res.status(404).json({ error: "Archived item not found." }); return; }
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+
 machinesRouter.patch("/:id/odometer", async (req, res, next) => {
   try {
     const body = MachineSchema.pick({ currentOdometer: true, currentOdometerDate: true }).parse(req.body);

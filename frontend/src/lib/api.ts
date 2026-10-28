@@ -67,6 +67,7 @@ export const api = {
   updateMachine: (id: string, machine: Omit<Machine, "id">) => put<Machine>(`/machines/${encodeURIComponent(id)}`, machine),
   archivedMachines: () => get<ArchivedMachine[]>("/machines/archived"),
   archiveMachine: (id: string) => patch(`/machines/${encodeURIComponent(id)}/archive`),
+  reinstateMachine: (id: string) => patch(`/machines/${encodeURIComponent(id)}/reinstate`),
   deleteMachine: (id: string) => remove(`/machines/${encodeURIComponent(id)}`),
   reorderMachines: (machineIds: string[], shopId = "shop-1") => post<{ updated: number }>("/machines/reorder", { machineIds, shopId }),
   moveMachine: (id: string, shopId: string) => post<Machine>(`/machines/${encodeURIComponent(id)}/move`, { shopId }),

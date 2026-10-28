@@ -5,11 +5,12 @@ import { api } from "../lib/api";
 
 const sections = [["identity", "Identity"], ["controls", "Controls"], ["session", "Session"], ["about", "About"]] as const;
 
-export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
+export function ProfileView({ session, shops, shopsReady, onShopsChange, onItemsChange }: {
   session: AppAuthSession;
   shops: ShopSetting[];
   shopsReady: boolean;
   onShopsChange: (shops: ShopSetting[]) => void;
+  onItemsChange: () => Promise<void>;
 }) {
   const [section, setSection] = useState<typeof sections[number][0]>("identity");
   const [passwordFormOpen, setPasswordFormOpen] = useState(false);
@@ -25,6 +26,8 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
   const [shopDraft, setShopDraft] = useState<ShopSetting[]>([]);
   const [archived, setArchived] = useState<ArchivedMachine[] | null>(null);
   const [archiveError, setArchiveError] = useState("");
+  const [editingArchive, setEditingArchive] = useState(false);
+  const [archiveAction, setArchiveAction] = useState<{ id: string; type: "reinstate" | "delete" } | null>(null);
   useEffect(() => {
     if (section !== "controls") return;
     let active = true;
@@ -36,6 +39,19 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
   }, [section]);
   const archivedShopIds = [...new Set([...shops.map(({ id }) => id), ...(archived ?? []).map(({ shopId }) => shopId)])]
     .filter((shopId) => archived?.some((item) => item.shopId === shopId));
+  const updateArchivedItem = async (item: ArchivedMachine, type: "reinstate" | "delete") => {
+    if (type === "delete" && !window.confirm(`Permanently delete ${item.name || item.code} from your database? This cannot be undone.`)) return;
+    setArchiveAction({ id: item.id, type });
+    setArchiveError("");
+    try {
+      if (type === "reinstate") await api.reinstateMachine(item.id);
+      else await api.deleteMachine(item.id);
+      setArchived((current) => current?.filter(({ id }) => id !== item.id) ?? null);
+      await onItemsChange();
+    } catch (reason) {
+      setArchiveError(reason instanceof Error ? reason.message : "Could not update archived item.");
+    } finally { setArchiveAction(null); }
+  };
   const run =  async (action: () => Promise<void>) => {
     setBusy(true); setError(""); setMessage("");
     try { await action(); }
@@ -69,7 +85,7 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
         {section === "identity" && <section><dl className="identity-list"><div><dt>Email</dt><dd>{session.email}</dd></div><div><dt>Email verified</dt><dd>{session.emailVerified ? "Yes" : "No"}</dd></div></dl></section>}
         {section === "controls" && <section className="shop-controls">
           <div className="shop-controls-heading">
-            <div><h3>Controls</h3><p className="muted">Enable shops to make them available from the Shop screen.<br />Extras adds a separate section for non-core items.</p></div>
+            <div><h3>Shops</h3><p className="muted">Enable shops to make them available from the Shop screen.<br />Extras adds a separate section for non-core items.</p></div>
             {!editingShops
               ? <button className="button primary" disabled={!shopsReady} onClick={() => { setShopDraft(shops.map((shop) => ({ ...shop, name: shop.name ?? shopName(shop) }))); setEditingShops(true); }}>Edit</button>
               : <div className="shop-control-actions">
@@ -116,9 +132,11 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
           <section className="archive-controls" aria-labelledby="archive-heading">
             <div className="shop-controls-heading">
               <div><h3 id="archive-heading">Archive</h3><p className="muted">Archived items are hidden from the Shop and Tasks screens but kept in your database.</p></div>
+              <button type="button" className={`button ${editingArchive ? "subtle" : "primary"}`} aria-pressed={editingArchive} disabled={!archived || !!archiveAction} onClick={() => setEditingArchive((current) => !current)}>{editingArchive ? "Done" : "Edit"}</button>
             </div>
-            {archiveError ? <div className="alert" role="alert">{archiveError}</div>
-              : !archived ? <p className="muted" role="status">Loading archived items...</p>
+            {editingArchive && <p className="muted">Reinstate returns an item to its original shop. Remove permanently deletes it. Changes apply immediately.</p>}
+            {archiveError && <div className="alert" role="alert">{archiveError}</div>}
+            {!archived ? !archiveError && <p className="muted" role="status">Loading archived items...</p>
               : archived.length === 0 ? <p className="muted">No archived items.</p>
               : archivedShopIds.map((shopId) => {
                 const shop = shops.find(({ id }) => id === shopId) ?? { id: shopId };
@@ -128,6 +146,10 @@ export function ProfileView({ session, shops, shopsReady, onShopsChange }: {
                     {archived.filter((item) => item.shopId === shopId).map((item) => <li key={item.id}>
                       <span>{item.name || "Unnamed item"}</span>
                       <span className="archive-code">{item.code}</span>
+                      {editingArchive && <div className="archive-item-actions">
+                        <button type="button" className="button subtle" disabled={!!archiveAction} aria-label={`Reinstate ${item.name || item.code}`} onClick={() => void updateArchivedItem(item, "reinstate")}>{archiveAction?.id === item.id && archiveAction.type === "reinstate" ? "Reinstating..." : "Reinstate"}</button>
+                        <button type="button" className="button danger-button" disabled={!!archiveAction} aria-label={`Permanently remove ${item.name || item.code}`} onClick={() => void updateArchivedItem(item, "delete")}>{archiveAction?.id === item.id && archiveAction.type === "delete" ? "Removing..." : "Remove"}</button>
+                      </div>}
                     </li>)}
                   </ul>
                 </div>;

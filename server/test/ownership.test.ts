@@ -226,6 +226,36 @@ describe("user-owned API data", () => {
     expect(await (await request("machines/archived", owner)).json()).toEqual([{ id: machineId.toHexString(), code: "CAR", shopId: "shop-1" }]);
   });
 
+  it.each([undefined, "shop-2"])("reinstates archived items in their original shop (%s) with all their data preserved", async (shopId) => {
+    Object.assign(data.machines[0], {
+      ...(shopId ? { shopId } : {}), extra: true, shopOrder: 3,
+      gallery: [{ imageId: "0123456789abcdef01234567" }], currentOdometer: "1234"
+    });
+    const original = JSON.stringify(data);
+    expect((await request(`machines/${machineId}/archive`, owner, "PATCH")).status).toBe(204);
+    const archived = JSON.stringify(data);
+    expect((await request(`machines/${machineId}/reinstate`, other, "PATCH")).status).toBe(404);
+    expect(JSON.stringify(data)).toBe(archived);
+    expect((await request(`machines/${machineId}/reinstate`, owner, "PATCH")).status).toBe(204);
+    expect(data.machines[0].archived).toBe(false);
+    const { archived: _archived, ...restored } = data.machines[0];
+    expect(JSON.stringify({ ...data, machines: [restored] })).toBe(original);
+    expect(await (await request("machines/archived", owner)).json()).toEqual([]);
+    expect(await (await request("machines", owner)).json()).toMatchObject([{ id: machineId.toHexString(), extra: true, shopOrder: 3 }]);
+    expect(await (await request("dashboard", owner)).json()).not.toEqual([]);
+    expect((await request(`machines/${machineId}/reinstate`, owner, "PATCH")).status).toBe(404);
+  });
+
+  it("permanently deletes archived items only for their owner and cannot reinstate deleted items", async () => {
+    expect((await request(`machines/${machineId}/archive`, owner, "PATCH")).status).toBe(204);
+    expect((await request(`machines/${machineId}`, other, "DELETE")).status).toBe(404);
+    expect(data.machines).toHaveLength(1);
+    expect((await request(`machines/${machineId}`, owner, "DELETE")).status).toBe(204);
+    expect(data.machines).toEqual([]);
+    expect(await (await request("machines/archived", owner)).json()).toEqual([]);
+    expect((await request(`machines/${machineId}/reinstate`, owner, "PATCH")).status).toBe(404);
+  });
+
   it("persists a complete, unique order for only the requesting user's machines", async () => {
     const secondMachineId = new ObjectId();
     data.machines.push({ _id: secondMachineId, userId: owner, code: "BIKE", type: "Motorcycle" });

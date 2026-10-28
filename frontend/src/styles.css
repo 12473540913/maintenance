@@ -313,7 +313,9 @@ label input { min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid v
 .archive-shop { margin-top: 16px; }
 .archive-shop h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
 .archive-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
-.archive-list li { display: flex; justify-content: space-between; gap: 18px; padding: 10px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.archive-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; padding: 10px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.archive-list li > span:first-child { flex: 1; overflow-wrap: anywhere; }
+.archive-item-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .archive-list .archive-code { color: var(--muted); font-family: ui-monospace, Consolas, monospace; }
 .about-panel { padding: 0; border: 0; background: transparent; }
 .about-sections { display: grid; gap: 22px; }
