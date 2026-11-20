@@ -3,7 +3,9 @@
 Maintenance tracker for autos, motos, cycles, houses, equipment, or other machines.
 
 ## Demos
-- demo to come shortly!
+- https://github.com/user-attachments/assets/7ec4c384-83f7-4670-9f09-de2e240627b9
+
+
   
 ## Features
 - **Tasks** is the main tab: a table ledger grouped by item and user-created sections, without a visible page title. The active **All** button is centered on the same row as **Edit**. Toggle **All** off to select the first item and show centered item buttons; **All** moves beside **Edit** on the right. Select **All** again to restore the combined ledger.
